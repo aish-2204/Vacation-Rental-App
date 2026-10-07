@@ -1,0 +1,28 @@
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+docs/openapi.json
+.DS_Store
+backend/.env
+backend/.venv/
+
+# Local Codex instructions, configuration, and skills
+AGENTS.md
+AGENTS.override.md
+.codex/
+.agents/
+
+# Local implementation instructions
+/implementation_plan.md
