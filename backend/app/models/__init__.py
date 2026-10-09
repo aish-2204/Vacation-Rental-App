@@ -3,6 +3,7 @@
 from app.models.domain import (
     Amenity,
     AvailabilityBlock,
+    Booking,
     Listing,
     ListingAmenity,
     ListingBookingRule,
@@ -14,6 +15,7 @@ from app.models.domain import (
 __all__ = [
     "Amenity",
     "AvailabilityBlock",
+    "Booking",
     "Listing",
     "ListingAmenity",
     "ListingBookingRule",

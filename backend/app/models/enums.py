@@ -14,6 +14,11 @@ class ListingStatus(StrEnum):
     REMOVED = "REMOVED"
 
 
+class ReservationState(StrEnum):
+    CONFIRMED = "CONFIRMED"
+    CANCELLED = "CANCELLED"
+
+
 class MediaType(StrEnum):
     IMAGE = "IMAGE"
     VIDEO = "VIDEO"
