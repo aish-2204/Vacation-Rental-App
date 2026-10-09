@@ -14,3 +14,8 @@ class ListingStatus(StrEnum):
     REMOVED = "REMOVED"
 
 
+class MediaType(StrEnum):
+    IMAGE = "IMAGE"
+    VIDEO = "VIDEO"
+
+

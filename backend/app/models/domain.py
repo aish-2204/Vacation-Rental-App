@@ -91,6 +91,79 @@ class Listing(UUIDPrimaryKey, Timestamps, Base):
     removed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ListingHours(UUIDPrimaryKey, Base):
+    __tablename__ = "listing_hours"
+    __table_args__ = (
+        UniqueConstraint("listing_id", "weekday"),
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="weekday_range"),
+        CheckConstraint(
+            "(closed AND opening_time IS NULL AND closing_time IS NULL) OR "
+            "(NOT closed AND opening_time IS NOT NULL AND closing_time IS NOT NULL "
+            "AND opening_time < closing_time)",
+            name="contact_window",
+        ),
+    )
+
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    weekday: Mapped[int] = mapped_column(Integer)
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    opening_time: Mapped[time | None] = mapped_column(Time)
+    closing_time: Mapped[time | None] = mapped_column(Time)
+
+
+class ListingBookingRule(UUIDPrimaryKey, Base):
+    __tablename__ = "listing_booking_rules"
+    __table_args__ = (
+        UniqueConstraint("listing_id", "weekday"),
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="weekday_range"),
+        CheckConstraint(
+            "(NOT arrival_allowed AND arrival_start IS NULL AND arrival_end IS NULL "
+            "AND arrival_default IS NULL) OR (arrival_allowed AND arrival_start IS NOT NULL "
+            "AND arrival_end IS NOT NULL AND arrival_default IS NOT NULL "
+            "AND arrival_start <= arrival_default AND arrival_default <= arrival_end)",
+            name="arrival_window",
+        ),
+        CheckConstraint(
+            "(NOT departure_allowed AND departure_start IS NULL AND departure_end IS NULL "
+            "AND departure_default IS NULL) OR (departure_allowed AND departure_start IS NOT NULL "
+            "AND departure_end IS NOT NULL AND departure_default IS NOT NULL "
+            "AND departure_start <= departure_default AND departure_default <= departure_end)",
+            name="departure_window",
+        ),
+    )
+
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    weekday: Mapped[int] = mapped_column(Integer)
+    arrival_allowed: Mapped[bool] = mapped_column(Boolean)
+    arrival_start: Mapped[time | None] = mapped_column(Time)
+    arrival_end: Mapped[time | None] = mapped_column(Time)
+    arrival_default: Mapped[time | None] = mapped_column(Time)
+    departure_allowed: Mapped[bool] = mapped_column(Boolean)
+    departure_start: Mapped[time | None] = mapped_column(Time)
+    departure_end: Mapped[time | None] = mapped_column(Time)
+    departure_default: Mapped[time | None] = mapped_column(Time)
+
+
+class ListingMedia(UUIDPrimaryKey, Base):
+    __tablename__ = "listing_media"
+    __table_args__ = (
+        # HTTPS everywhere; plain HTTP only for loopback local-storage uploads (dev/test).
+        CheckConstraint(
+            "url ~ '^(https://[^/[:space:]]+(/[^[:space:]]*)?"
+            "|http://(127\\.0\\.0\\.1|localhost)(:[0-9]+)?/media/[^[:space:]]+)$'",
+            name="https_url",
+        ),
+        CheckConstraint("sort_order >= 0", name="nonnegative_order"),
+        Index("ix_listing_media_listing_order", "listing_id", "sort_order"),
+    )
+
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    url: Mapped[str] = mapped_column(Text)
+    media_type: Mapped[MediaType] = mapped_column(enum_type(MediaType, "media_type"))
+    caption: Mapped[str | None] = mapped_column(String(200))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
 class Amenity(UUIDPrimaryKey, Base):
     __tablename__ = "amenities"
     name: Mapped[str] = mapped_column(String(80), unique=True)
@@ -104,5 +177,18 @@ class ListingAmenity(Base):
     amenity_id: Mapped[UUID] = mapped_column(
         ForeignKey("amenities.id", ondelete="RESTRICT"), primary_key=True
     )
+
+
+class AvailabilityBlock(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "availability_blocks"
+    __table_args__ = (
+        CheckConstraint("end_date > start_date", name="ordered_dates"),
+        Index("ix_availability_blocks_listing_dates", "listing_id", "start_date", "end_date"),
+    )
+
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date] = mapped_column(Date)
+    reason: Mapped[str] = mapped_column(Text)
 
 
