@@ -1,0 +1,31 @@
+services:
+  postgres-dev:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vacation
+      POSTGRES_PASSWORD: vacation
+      POSTGRES_DB: vacation_rental_dev
+    ports: ["127.0.0.1:55432:5432"]
+    volumes: ["postgres-dev-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vacation -d vacation_rental_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vacation
+      POSTGRES_PASSWORD: vacation
+      POSTGRES_DB: vacation_rental_test
+    ports: ["127.0.0.1:55433:5432"]
+    volumes: ["postgres-test-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vacation -d vacation_rental_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-dev-data:
+  postgres-test-data:
