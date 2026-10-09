@@ -24,3 +24,7 @@ class MediaType(StrEnum):
     VIDEO = "VIDEO"
 
 
+class AdminActionType(StrEnum):
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    REMOVED = "REMOVED"

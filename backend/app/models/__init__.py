@@ -1,6 +1,7 @@
 """Import all model metadata for migrations and database tooling."""
 
 from app.models.domain import (
+    AdminAction,
     Amenity,
     AvailabilityBlock,
     Booking,
@@ -9,10 +10,13 @@ from app.models.domain import (
     ListingBookingRule,
     ListingHours,
     ListingMedia,
+    ListingRemoval,
+    Review,
     User,
 )
 
 __all__ = [
+    "AdminAction",
     "Amenity",
     "AvailabilityBlock",
     "Booking",
@@ -21,5 +25,7 @@ __all__ = [
     "ListingBookingRule",
     "ListingHours",
     "ListingMedia",
+    "ListingRemoval",
+    "Review",
     "User",
 ]

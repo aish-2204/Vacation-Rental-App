@@ -242,3 +242,40 @@ class Booking(UUIDPrimaryKey, Timestamps, Base):
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Review(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "reviews"
+    __table_args__ = (CheckConstraint("rating BETWEEN 1 AND 5", name="rating_bounds"),)
+
+    booking_id: Mapped[UUID] = mapped_column(
+        ForeignKey("bookings.id", ondelete="RESTRICT"), unique=True
+    )
+    rating: Mapped[int] = mapped_column(Integer)
+    comment: Mapped[str] = mapped_column(Text)
+
+
+class AdminAction(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "admin_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "action = 'APPROVED' OR (reason IS NOT NULL AND length(btrim(reason)) > 0)",
+            name="moderation_reason",
+        ),
+        Index("ix_admin_actions_listing_created", "listing_id", "created_at"),
+        Index("ix_admin_actions_admin_created", "admin_id", "created_at"),
+    )
+
+    admin_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    action: Mapped[AdminActionType] = mapped_column(enum_type(AdminActionType, "admin_action_type"))
+    reason: Mapped[str | None] = mapped_column(Text)
+
+
+class ListingRemoval(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "listing_removals"
+    __table_args__ = (CheckConstraint("length(btrim(reason)) > 0", name="nonempty_reason"),)
+
+    listing_id: Mapped[UUID] = mapped_column(
+        ForeignKey("listings.id", ondelete="RESTRICT"), unique=True
+    )
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reason: Mapped[str] = mapped_column(Text)
