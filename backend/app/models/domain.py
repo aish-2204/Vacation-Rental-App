@@ -192,3 +192,90 @@ class AvailabilityBlock(UUIDPrimaryKey, CreatedAt, Base):
     reason: Mapped[str] = mapped_column(Text)
 
 
+class Booking(UUIDPrimaryKey, Timestamps, Base):
+    __tablename__ = "bookings"
+    __table_args__ = (
+        CheckConstraint("check_out - check_in BETWEEN 1 AND 14", name="nightly_duration"),
+        CheckConstraint("guests > 0", name="positive_guests"),
+        CheckConstraint("nightly_price_snapshot > 0", name="positive_price"),
+        CheckConstraint(
+            "total_cost = nightly_price_snapshot * (check_out - check_in)", name="calculated_total"
+        ),
+        CheckConstraint("currency = 'USD'", name="usd_currency"),
+        CheckConstraint("departure_at > arrival_at", name="ordered_utc_times"),
+        CheckConstraint(
+            "(reservation_state = 'CANCELLED') = (cancelled_at IS NOT NULL)",
+            name="cancellation_timestamp",
+        ),
+        ExcludeConstraint(
+            ("listing_id", "="),
+            (func.daterange(text("check_in"), text("check_out"), "[)"), "&&"),
+            where=text("reservation_state = 'CONFIRMED'"),
+            name="ex_bookings_no_confirmed_overlap",
+            using="gist",
+        ),
+        Index("ix_bookings_listing_dates", "listing_id", "check_in", "check_out"),
+        Index("ix_bookings_customer_created", "customer_id", "created_at"),
+        Index("ix_bookings_created_zip", "created_at", "listing_zip_snapshot"),
+        Index("ix_bookings_listing_created", "listing_id", "created_at"),
+    )
+
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    customer_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    check_in: Mapped[date] = mapped_column(Date)
+    check_out: Mapped[date] = mapped_column(Date)
+    arrival_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    departure_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    guests: Mapped[int] = mapped_column(Integer)
+    nightly_price_snapshot: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    currency: Mapped[str] = mapped_column(String(3), default="USD", server_default="USD")
+    total_cost: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    listing_name_snapshot: Mapped[str] = mapped_column(String(160))
+    listing_address_snapshot: Mapped[str] = mapped_column(Text)
+    listing_zip_snapshot: Mapped[str] = mapped_column(String(10))
+    listing_timezone_snapshot: Mapped[str] = mapped_column(String(64))
+    reservation_state: Mapped[ReservationState] = mapped_column(
+        enum_type(ReservationState, "reservation_state"),
+        default=ReservationState.CONFIRMED,
+        server_default="CONFIRMED",
+    )
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Review(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "reviews"
+    __table_args__ = (CheckConstraint("rating BETWEEN 1 AND 5", name="rating_bounds"),)
+
+    booking_id: Mapped[UUID] = mapped_column(
+        ForeignKey("bookings.id", ondelete="RESTRICT"), unique=True
+    )
+    rating: Mapped[int] = mapped_column(Integer)
+    comment: Mapped[str] = mapped_column(Text)
+
+
+class AdminAction(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "admin_actions"
+    __table_args__ = (
+        CheckConstraint(
+            "action = 'APPROVED' OR (reason IS NOT NULL AND length(btrim(reason)) > 0)",
+            name="moderation_reason",
+        ),
+        Index("ix_admin_actions_listing_created", "listing_id", "created_at"),
+        Index("ix_admin_actions_admin_created", "admin_id", "created_at"),
+    )
+
+    admin_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    listing_id: Mapped[UUID] = mapped_column(ForeignKey("listings.id", ondelete="RESTRICT"))
+    action: Mapped[AdminActionType] = mapped_column(enum_type(AdminActionType, "admin_action_type"))
+    reason: Mapped[str | None] = mapped_column(Text)
+
+
+class ListingRemoval(UUIDPrimaryKey, CreatedAt, Base):
+    __tablename__ = "listing_removals"
+    __table_args__ = (CheckConstraint("length(btrim(reason)) > 0", name="nonempty_reason"),)
+
+    listing_id: Mapped[UUID] = mapped_column(
+        ForeignKey("listings.id", ondelete="RESTRICT"), unique=True
+    )
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reason: Mapped[str] = mapped_column(Text)
