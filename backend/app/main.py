@@ -15,6 +15,7 @@ from app.middleware.errors import (
     validation_error_handler,
 )
 from app.middleware.request_id import RequestIDMiddleware
+from app.routers.auth import router as auth_router
 from app.routers.health import router as health_router
 
 settings = get_settings()
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     application.add_exception_handler(RequestValidationError, validation_error_handler)
     application.add_exception_handler(Exception, unhandled_error_handler)
     application.include_router(health_router)
+    application.include_router(auth_router, prefix="/api/v1")
     return application
 
 
