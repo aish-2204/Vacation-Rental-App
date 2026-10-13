@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.throttle import LoginRateLimiter
 from app.database.session import dispose_engine
 from app.middleware.errors import (
     http_error_handler,
@@ -33,6 +34,9 @@ def create_app() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
+    )
+    application.state.login_limiter = LoginRateLimiter(
+        settings.login_max_attempts, settings.login_window_seconds
     )
     application.add_middleware(RequestIDMiddleware)
     application.add_middleware(
