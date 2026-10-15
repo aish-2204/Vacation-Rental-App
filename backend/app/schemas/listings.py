@@ -478,6 +478,15 @@ class ListingDetail(ListingSummary):
     removal: RemovalResponse | None
 
 
+class AuditResponse(ORMResponse):
+    id: UUID
+    admin_id: UUID
+    listing_id: UUID
+    action: AdminActionType
+    reason: str | None
+    created_at: datetime
+
+
 class DeletedResponse(BaseModel):
     id: UUID
     deleted: Literal[True] = True
