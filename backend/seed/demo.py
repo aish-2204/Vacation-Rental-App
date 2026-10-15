@@ -100,6 +100,45 @@ async def seed_demo(session: AsyncSession, *, as_of: datetime | None = None) -> 
         for name in ("Wi-Fi", "Kitchen", "Parking", "Pool", "Pet friendly", "Workspace")
     ]
     counts["amenities"] = await insert_missing(session, Amenity, amenities)
+    listings = []
+    prices = ["99.99", "100.00", "199.99", "200.00", "299.99", "300.00"]
+    statuses = [ListingStatus.APPROVED] * 8 + [
+        ListingStatus.PENDING,
+        ListingStatus.PENDING,
+        ListingStatus.REJECTED,
+        ListingStatus.REMOVED,
+    ]
+    for i in range(12):
+        city, state, zip_code, lat, lng, timezone = LOCATIONS[i % len(LOCATIONS)]
+        listings.append(
+            dict(
+                id=demo_id(f"listing/{i}"),
+                host_id=demo_id(f"user/{1 + i % 2}"),
+                name=f"Demo {city} Home {i + 1}",
+                description="Fictional entire-home course demo rental.",
+                address_line1=f"{100 + i} Example Lane",
+                address_line2=None,
+                city=city,
+                state=state,
+                zip_code=zip_code,
+                latitude=Decimal(lat),
+                longitude=Decimal(lng),
+                timezone=timezone,
+                contact_name="Demo Host",
+                contact_email=DEMO_EMAILS[1 + i % 2],
+                contact_phone="+15550100100",
+                nightly_price=Decimal(prices[i % len(prices)]),
+                currency="USD",
+                max_guests=2 + i % 5,
+                status=statuses[i],
+                removed_at=anchor - timedelta(days=1)
+                if statuses[i] == ListingStatus.REMOVED
+                else None,
+                created_at=anchor - timedelta(days=180 - i * 2),
+                updated_at=anchor,
+            )
+        )
+    counts["listings"] = await insert_missing(session, Listing, listings)
     return counts
 
 
