@@ -11,10 +11,12 @@ from app.core.security import decode_access_token
 from app.database.session import get_session
 from app.models import User
 from app.models.enums import Role
+from app.storage import ObjectStorage, get_storage
 
 bearer = HTTPBearer(scheme_name="BearerAuth", auto_error=False)
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+StorageDep = Annotated[ObjectStorage, Depends(get_storage)]
 
 
 async def get_current_user(
