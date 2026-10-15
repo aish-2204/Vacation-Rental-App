@@ -139,6 +139,93 @@ async def seed_demo(session: AsyncSession, *, as_of: datetime | None = None) -> 
             )
         )
     counts["listings"] = await insert_missing(session, Listing, listings)
+    hours, rules, media, links, blocks, actions = [], [], [], [], [], []
+    for i, listing in enumerate(listings):
+        listing_id = listing["id"]
+        for weekday in range(7):
+            hours.append(
+                dict(
+                    id=demo_id(f"hours/{i}/{weekday}"),
+                    listing_id=listing_id,
+                    weekday=weekday,
+                    closed=weekday == 6,
+                    opening_time=None if weekday == 6 else time(9),
+                    closing_time=None if weekday == 6 else time(18),
+                )
+            )
+            rules.append(
+                dict(
+                    id=demo_id(f"rules/{i}/{weekday}"),
+                    listing_id=listing_id,
+                    weekday=weekday,
+                    arrival_allowed=True,
+                    arrival_start=time(15),
+                    arrival_end=time(22),
+                    arrival_default=time(15),
+                    departure_allowed=True,
+                    departure_start=time(7),
+                    departure_end=time(11),
+                    departure_default=time(11),
+                )
+            )
+        media.append(
+            dict(
+                id=demo_id(f"media/{i}"),
+                listing_id=listing_id,
+                url=f"https://placehold.co/800x600?text=Demo+Home+{i + 1}",
+                media_type=MediaType.IMAGE,
+                caption="Placeholder photo for fictional demo home",
+                sort_order=0,
+            )
+        )
+        links.extend(
+            {"listing_id": listing_id, "amenity_id": amenity["id"]}
+            for amenity in amenities[: 2 + i % 5]
+        )
+        blocks.append(
+            dict(
+                id=demo_id(f"block/{i}"),
+                listing_id=listing_id,
+                start_date=anchor.date() + timedelta(days=60),
+                end_date=anchor.date() + timedelta(days=63),
+                reason="Demo maintenance",
+                created_at=anchor,
+            )
+        )
+        if listing["status"] != ListingStatus.PENDING:
+            action = AdminActionType(listing["status"].value)
+            actions.append(
+                dict(
+                    id=demo_id(f"action/{i}"),
+                    listing_id=listing_id,
+                    admin_id=demo_id("user/0"),
+                    action=action,
+                    reason="Demo moderation decision",
+                    created_at=listing["updated_at"],
+                )
+            )
+    for model, rows in (
+        (ListingHours, hours),
+        (ListingBookingRule, rules),
+        (ListingMedia, media),
+        (ListingAmenity, links),
+        (AvailabilityBlock, blocks),
+        (AdminAction, actions),
+    ):
+        counts[model.__tablename__] = await insert_missing(session, model, rows)
+    counts["listing_removals"] = await insert_missing(
+        session,
+        ListingRemoval,
+        [
+            dict(
+                id=demo_id("removal/11"),
+                listing_id=demo_id("listing/11"),
+                actor_id=demo_id("user/0"),
+                reason="Demo moderation decision",
+                created_at=listings[11]["removed_at"],
+            )
+        ],
+    )
     return counts
 
 
