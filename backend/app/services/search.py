@@ -39,6 +39,18 @@ from app.services.pagination import pagination
 from app.services.search_filters import search_filters
 
 
+def invalid_stay(error: StayError) -> APIError:
+    return APIError(
+        422, error.code, str(error), details=[{"field": error.field, "message": str(error)}]
+    )
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    lat1, lon1, lat2, lon2 = map(radians, (lat1, lon1, lat2, lon2))
+    a = sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2
+    return 6371.0088 * 2 * asin(sqrt(max(0.0, min(1.0, a))))
+
+
 @dataclass
 class RelatedData:
     media: dict
@@ -187,3 +199,57 @@ async def search(
     )
 
 
+async def one_listing(
+    session: AsyncSession, listing_id: UUID, query: StayQuery, now: datetime
+) -> tuple[Listing, RelatedData, ResolvedStay | None, bool | None]:
+    request = query.stay_request()
+    try:
+        validate_global_arrival(request, now)
+    except StayError as exc:
+        raise invalid_stay(exc) from None
+    listing = await session.scalar(
+        select(Listing).where(Listing.id == listing_id, Listing.status == ListingStatus.APPROVED)
+    )
+    if listing is None:
+        raise APIError(404, "NOT_FOUND", "Listing not found")
+    related = await load_related(session, [listing.id], now)
+    stay = None
+    available = None
+    if request:
+        try:
+            stay = resolve_listing_stay(listing, request, related.rules[listing.id], now)
+        except StayError as exc:
+            raise invalid_stay(exc) from None
+        available = listing.id not in await occupied_listing_ids(session, [listing.id], request)
+    elif query.guests is not None and query.guests > listing.max_guests:
+        raise APIError(422, "GUEST_LIMIT", "Guest count exceeds the listing capacity")
+    return listing, related, stay, available
+
+
+async def detail(session: AsyncSession, listing_id: UUID, query: StayQuery, now: datetime):
+    listing, related, stay, available = await one_listing(session, listing_id, query, now)
+    return PublicListingDetail.model_validate(
+        {
+            **public_values(listing, related, stay, available),
+            "address_line2": listing.address_line2,
+            "description": listing.description,
+            "contact_name": listing.contact_name,
+            "contact_email": listing.contact_email,
+            "contact_phone": listing.contact_phone,
+            "hours": related.hours[listing.id],
+            "booking_rules": related.rules[listing.id],
+        }
+    )
+
+
+async def availability(session: AsyncSession, listing_id: UUID, query: StayQuery, now: datetime):
+    listing, related, stay, available = await one_listing(session, listing_id, query, now)
+    if stay is None:
+        raise APIError(422, "INVALID_STAY", "Availability requires a valid stay")
+    return AvailabilityResponse(
+        listing_id=listing.id,
+        available=available,
+        quote=QuoteResponse.from_stay(stay),
+        total_cost=stay.total_cost,
+        unavailable_reason="DATES_UNAVAILABLE" if not available else None,
+    )
