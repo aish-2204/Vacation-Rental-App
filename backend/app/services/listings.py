@@ -243,3 +243,98 @@ async def create_listing(
     return await finish(session, listing)
 
 
+async def active_future_stays(session: AsyncSession, listing_id: UUID) -> list[Booking]:
+    return list(
+        (
+            await session.scalars(
+                select(Booking)
+                .where(
+                    Booking.listing_id == listing_id,
+                    Booking.reservation_state == ReservationState.CONFIRMED,
+                    Booking.departure_at > datetime.now(UTC),
+                )
+                .order_by(Booking.id)
+            )
+        ).all()
+    )
+
+
+async def patch_listing(
+    session: AsyncSession, host_id: UUID, listing_id: UUID, request: ListingPatch
+) -> ListingDetail:
+    listing = await lock_listing(session, listing_id, host_id=host_id)
+    ensure_mutable(listing)
+    values = request.model_dump(exclude_unset=True)
+    changed_fields = {
+        field
+        for field, value in values.items()
+        if field != "amenity_ids" and getattr(listing, field) != value
+    }
+    if changed_fields & (LOCATION_FIELDS | {"max_guests"}):
+        stays = await active_future_stays(session, listing.id)
+        if stays and changed_fields & LOCATION_FIELDS:
+            raise conflict(
+                "Location and timezone cannot change while future/ongoing stays depend on them"
+            )
+        if any(stay.guests > values.get("max_guests", listing.max_guests) for stay in stays):
+            raise conflict("Capacity cannot be reduced below a future/ongoing stay's guest count")
+    if "amenity_ids" in values and await set_amenities(
+        session, listing.id, values.pop("amenity_ids")
+    ):
+        changed_fields.add("amenity_ids")
+    for field, value in values.items():
+        setattr(listing, field, value)
+    host_edit(
+        listing, material=bool(changed_fields & MATERIAL_FIELDS), changed=bool(changed_fields)
+    )
+    if listing.status == ListingStatus.APPROVED:
+        await ensure_complete(session, listing)
+    return await finish(session, listing)
+
+
+async def ensure_complete(session: AsyncSession, listing: Listing) -> None:
+    missing = []
+    try:
+        ListingCreate.model_validate(
+            {
+                field: getattr(listing, field)
+                for field in ListingCreate.model_fields
+                if hasattr(listing, field)
+            }
+        )
+    except ValidationError as exc:
+        missing.extend(
+            {"field": str(error["loc"][0]), "message": error["msg"]} for error in exc.errors()
+        )
+    for field in ("description", "contact_name", "contact_email", "contact_phone"):
+        if not getattr(listing, field).strip():
+            missing.append({"field": field, "message": "Required for approval"})
+    media = (
+        await session.scalars(select(ListingMedia).where(ListingMedia.listing_id == listing.id))
+    ).all()
+    if not any(item.media_type == MediaType.IMAGE for item in media):
+        missing.append({"field": "media", "message": "At least one HTTPS photo is required"})
+    for model, input_type, field in (
+        (ListingHours, HoursInput, "hours"),
+        (ListingBookingRule, BookingRuleInput, "booking_rules"),
+    ):
+        rows = (await session.scalars(select(model).where(model.listing_id == listing.id))).all()
+        if {row.weekday for row in rows} != set(range(7)):
+            missing.append({"field": field, "message": "All seven weekdays are required"})
+        for row in rows:
+            try:
+                input_type.model_validate(
+                    {key: getattr(row, key) for key in input_type.model_fields}
+                )
+            except ValidationError:
+                missing.append({"field": field, "message": "Invalid weekly window"})
+        if model is ListingBookingRule and not (
+            any(row.arrival_allowed for row in rows) and any(row.departure_allowed for row in rows)
+        ):
+            missing.append({"field": field, "message": "Enable at least one arrival/departure day"})
+    if missing:
+        raise APIError(
+            422, "LISTING_INCOMPLETE", "Listing is not complete for approval", details=missing
+        )
+
+

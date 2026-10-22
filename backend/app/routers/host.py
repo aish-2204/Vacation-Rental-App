@@ -81,3 +81,25 @@ async def detail(listing_id: UUID, session: SessionDep, host: HostUser):
     return Success(data=await listings.listing_detail(session, listing))
 
 
+@router.patch(
+    "/listings/{listing_id}",
+    response_model=Success[ListingDetail],
+    summary="Update your listing; material changes require reapproval",
+)
+async def patch(listing_id: UUID, request: ListingPatch, session: SessionDep, host: HostUser):
+    return Success(data=await listings.patch_listing(session, host.id, listing_id, request))
+
+
+@router.delete(
+    "/listings/{listing_id}",
+    response_model=Success[ListingDetail],
+    summary="Soft-remove your listing with an audited reason",
+)
+async def remove(listing_id: UUID, request: ReasonInput, session: SessionDep, host: HostUser):
+    return Success(
+        data=await RemoveListingCommand(
+            host.id, listing_id, request.reason, HostScope(host.id)
+        ).execute(session)
+    )
+
+
