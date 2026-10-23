@@ -243,3 +243,35 @@ async def create_listing(
     return await finish(session, listing)
 
 
+async def replace_hours(session, host_id, listing_id, request) -> ListingDetail:
+    listing = await lock_listing(session, listing_id, host_id=host_id)
+    ensure_mutable(listing)
+    changed = await set_week(session, listing.id, ListingHours, request.hours)
+    host_edit(listing, changed=changed)
+    return await finish(session, listing)
+
+
+async def replace_rules(session, host_id, listing_id, request) -> ListingDetail:
+    listing = await lock_listing(session, listing_id, host_id=host_id)
+    ensure_mutable(listing)
+    rules = {rule.weekday: rule for rule in request.booking_rules}
+    timezone = ZoneInfo(listing.timezone)
+    for stay in await active_future_stays(session, listing.id):
+        for direction, accepted in (("arrival", stay.arrival_at), ("departure", stay.departure_at)):
+            local = accepted.astimezone(timezone)
+            rule = rules[local.weekday()]
+            if not getattr(rule, f"{direction}_allowed") or not (
+                getattr(rule, f"{direction}_start")
+                <= local.time()
+                <= getattr(rule, f"{direction}_end")
+            ):
+                raise conflict(
+                    "Booking rules cannot invalidate a future/ongoing stay's accepted times"
+                )
+    changed = await set_week(session, listing.id, ListingBookingRule, request.booking_rules)
+    host_edit(listing, changed=changed)
+    if listing.status == ListingStatus.APPROVED:
+        await ensure_complete(session, listing)
+    return await finish(session, listing)
+
+

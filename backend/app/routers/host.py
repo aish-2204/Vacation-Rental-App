@@ -81,3 +81,21 @@ async def detail(listing_id: UUID, session: SessionDep, host: HostUser):
     return Success(data=await listings.listing_detail(session, listing))
 
 
+@router.put(
+    "/listings/{listing_id}/hours",
+    response_model=Success[ListingDetail],
+    summary="Replace all seven weekdays of display contact hours",
+)
+async def hours(listing_id: UUID, request: HoursReplace, session: SessionDep, host: HostUser):
+    return Success(data=await listings.replace_hours(session, host.id, listing_id, request))
+
+
+@router.put(
+    "/listings/{listing_id}/booking-rules",
+    response_model=Success[ListingDetail],
+    summary="Replace seven weekdays of arrival/departure rules",
+)
+async def rules(listing_id: UUID, request: RulesReplace, session: SessionDep, host: HostUser):
+    return Success(data=await listings.replace_rules(session, host.id, listing_id, request))
+
+
