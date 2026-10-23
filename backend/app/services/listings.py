@@ -275,3 +275,71 @@ async def replace_rules(session, host_id, listing_id, request) -> ListingDetail:
     return await finish(session, listing)
 
 
+async def nested_row(session, model, listing_id: UUID, identifier: UUID):
+    row = await session.scalar(
+        select(model).where(model.id == identifier, model.listing_id == listing_id)
+    )
+    if row is None:
+        raise APIError(404, "NOT_FOUND", "Resource not found")
+    return row
+
+
+class BlockPage(PageQuery[AvailabilityBlock, BlockResponse]):
+    def __init__(self, listing_id: UUID) -> None:
+        self.listing_id = listing_id
+
+    def statement(self) -> Select:
+        return select(AvailabilityBlock).where(AvailabilityBlock.listing_id == self.listing_id)
+
+    def order_by(self):
+        return (AvailabilityBlock.start_date, AvailabilityBlock.id)
+
+    def to_item(self, row: AvailabilityBlock) -> BlockResponse:
+        return BlockResponse.model_validate(row)
+
+
+async def blocks_page(session, host_id, listing_id, page, page_size) -> Paginated[BlockResponse]:
+    await get_listing(session, listing_id, host_id=host_id)
+    return await BlockPage(listing_id).fetch(session, page, page_size)
+
+
+async def add_block(session, host_id, listing_id, request: BlockInput) -> BlockResponse:
+    listing = await lock_listing(session, listing_id, host_id=host_id)
+    ensure_mutable(listing)
+    reserved = await session.scalar(
+        select(Booking.id)
+        .where(
+            Booking.listing_id == listing.id,
+            Booking.reservation_state == ReservationState.CONFIRMED,
+            Booking.check_in < request.end_date,
+            Booking.check_out > request.start_date,
+        )
+        .limit(1)
+    )
+    blocked = await session.scalar(
+        select(AvailabilityBlock.id)
+        .where(
+            AvailabilityBlock.listing_id == listing.id,
+            AvailabilityBlock.start_date < request.end_date,
+            AvailabilityBlock.end_date > request.start_date,
+        )
+        .limit(1)
+    )
+    if reserved or blocked:
+        raise conflict(
+            "Dates overlap a noncancelled reservation or an existing block", "DATES_UNAVAILABLE"
+        )
+    block = AvailabilityBlock(listing_id=listing.id, **request.model_dump())
+    session.add(block)
+    host_edit(listing)
+    await finish(session, listing)
+    return BlockResponse.model_validate(block)
+
+
+async def delete_block(session, host_id, listing_id, block_id):
+    listing = await lock_listing(session, listing_id, host_id=host_id)
+    ensure_mutable(listing)
+    block = await nested_row(session, AvailabilityBlock, listing.id, block_id)
+    await session.delete(block)
+    host_edit(listing)
+    await finish(session, listing)

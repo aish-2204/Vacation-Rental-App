@@ -99,3 +99,34 @@ async def rules(listing_id: UUID, request: RulesReplace, session: SessionDep, ho
     return Success(data=await listings.replace_rules(session, host.id, listing_id, request))
 
 
+@router.get(
+    "/listings/{listing_id}/blocks",
+    response_model=Paginated[BlockResponse],
+    summary="List your listing's date blocks",
+)
+async def blocks(
+    listing_id: UUID, session: SessionDep, host: HostUser, page: Page = 1, page_size: PageSize = 10
+):
+    return await listings.blocks_page(session, host.id, listing_id, page, page_size)
+
+
+@router.post(
+    "/listings/{listing_id}/blocks",
+    status_code=201,
+    response_model=Success[BlockResponse],
+    summary="Block a half-open unreserved nightly date range",
+)
+async def add_block(listing_id: UUID, request: BlockInput, session: SessionDep, host: HostUser):
+    return Success(data=await listings.add_block(session, host.id, listing_id, request))
+
+
+@router.delete(
+    "/listings/{listing_id}/blocks/{block_id}",
+    response_model=Success[DeletedResponse],
+    summary="Delete one of your listing's date blocks",
+)
+async def delete_block(listing_id: UUID, block_id: UUID, session: SessionDep, host: HostUser):
+    await listings.delete_block(session, host.id, listing_id, block_id)
+    return Success(data=DeletedResponse(id=block_id))
+
+
