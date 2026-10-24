@@ -113,3 +113,93 @@ export function Pagination({ pagination, onPage }) {
   );
 }
 
+export function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const handler = (event) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+        <h2>{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Modal that asks for a required text reason (reject / remove listing). */
+export function ReasonModal({ title, description, confirmLabel, danger = true, onSubmit, onClose }) {
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!reason.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSubmit(reason.trim());
+    } catch (err) {
+      setError(err);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <form onSubmit={submit}>
+        {description && <p className="muted">{description}</p>}
+        <ErrorAlert error={error} />
+        <Field label="Reason" hint="Required. Up to 2000 characters.">
+          <textarea
+            value={reason}
+            maxLength={2000}
+            onChange={(e) => setReason(e.target.value)}
+            autoFocus
+            required
+          />
+        </Field>
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button className={`btn ${danger ? 'btn-danger' : ''}`} disabled={busy || !reason.trim()}>
+            {busy ? 'Working…' : confirmLabel}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export function ConfirmModal({ title, message, confirmLabel, danger = true, onConfirm, onClose }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  async function confirm() {
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(err);
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={title} onClose={onClose}>
+      <ErrorAlert error={error} />
+      <p>{message}</p>
+      <div className="modal-actions">
+        <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
+          Keep it
+        </button>
+        <button className={`btn ${danger ? 'btn-danger' : ''}`} onClick={confirm} disabled={busy}>
+          {busy ? 'Working…' : confirmLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}
