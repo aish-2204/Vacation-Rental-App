@@ -226,6 +226,64 @@ async def seed_demo(session: AsyncSession, *, as_of: datetime | None = None) -> 
             )
         ],
     )
+    bookings, reviews = [], []
+    # Exact boundary, one microsecond inside, and one microsecond outside each window.
+    created_times = [anchor]
+    for days in (30, 60, 90):
+        boundary = anchor - timedelta(days=days)
+        created_times.extend(
+            [boundary - timedelta(microseconds=1), boundary, boundary + timedelta(microseconds=1)]
+        )
+    for i in range(12):
+        listing = listings[i % 8]
+        past = i < 8
+        offset = -(110 - i * 4) if past else 10 + (i - 8) * 5
+        check_in = anchor.date() + timedelta(days=offset)
+        check_out = check_in + timedelta(days=2 + i % 3)
+        timezone = ZoneInfo(listing["timezone"])
+        arrival = datetime.combine(check_in, time(15), timezone).astimezone(UTC)
+        departure = datetime.combine(check_out, time(11), timezone).astimezone(UTC)
+        cancelled = i in (2, 9)
+        # Historical creations must precede the stay; future creations exercise
+        # the 30/60/90 boundaries and a booking created today.
+        created = arrival - timedelta(days=5) if past else created_times[i - 8]
+        bookings.append(
+            dict(
+                id=demo_id(f"booking/{i}"),
+                listing_id=listing["id"],
+                customer_id=demo_id(f"user/{3 + i % 3}"),
+                check_in=check_in,
+                check_out=check_out,
+                arrival_at=arrival,
+                departure_at=departure,
+                guests=2,
+                nightly_price_snapshot=listing["nightly_price"],
+                currency="USD",
+                total_cost=listing["nightly_price"] * (check_out - check_in).days,
+                listing_name_snapshot=listing["name"],
+                listing_address_snapshot=f"{listing['address_line1']}, {listing['city']}",
+                listing_zip_snapshot=listing["zip_code"],
+                listing_timezone_snapshot=listing["timezone"],
+                reservation_state=ReservationState.CANCELLED
+                if cancelled
+                else ReservationState.CONFIRMED,
+                cancelled_at=created + timedelta(hours=1) if cancelled else None,
+                created_at=created,
+                updated_at=created,
+            )
+        )
+        if past and not cancelled:
+            reviews.append(
+                dict(
+                    id=demo_id(f"review/{i}"),
+                    booking_id=demo_id(f"booking/{i}"),
+                    rating=3 + i % 3,
+                    comment="Fictional review of a completed demo stay.",
+                    created_at=departure + timedelta(days=1),
+                )
+            )
+    counts["bookings"] = await insert_missing(session, Booking, bookings)
+    counts["reviews"] = await insert_missing(session, Review, reviews)
     return counts
 
 
