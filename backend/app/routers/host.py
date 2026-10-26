@@ -152,3 +152,43 @@ async def delete_block(listing_id: UUID, block_id: UUID, session: SessionDep, ho
     return Success(data=DeletedResponse(id=block_id))
 
 
+@router.post(
+    "/listings/{listing_id}/media",
+    status_code=201,
+    response_model=Success[MediaResponse],
+    summary="Add an uploaded file or an external HTTPS media URL",
+)
+async def add_media(
+    listing_id: UUID, request: MediaInput, session: SessionDep, host: HostUser, storage: StorageDep
+):
+    return Success(data=await media.add_media(session, storage, host.id, listing_id, request))
+
+
+@router.patch(
+    "/listings/{listing_id}/media/{media_id}",
+    response_model=Success[MediaResponse],
+    summary="Replace or reorder an owned media URL",
+)
+async def patch_media(
+    listing_id: UUID,
+    media_id: UUID,
+    request: MediaPatch,
+    session: SessionDep,
+    host: HostUser,
+    storage: StorageDep,
+):
+    return Success(
+        data=await media.patch_media(session, storage, host.id, listing_id, media_id, request)
+    )
+
+
+@router.delete(
+    "/listings/{listing_id}/media/{media_id}",
+    response_model=Success[DeletedResponse],
+    summary="Remove an owned media URL",
+)
+async def delete_media(
+    listing_id: UUID, media_id: UUID, session: SessionDep, host: HostUser, storage: StorageDep
+):
+    await media.delete_media(session, storage, host.id, listing_id, media_id)
+    return Success(data=DeletedResponse(id=media_id))
