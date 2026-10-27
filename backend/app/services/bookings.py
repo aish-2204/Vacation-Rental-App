@@ -207,3 +207,30 @@ async def create_booking(
         raise
 
 
+async def booking_detail(session, customer_id, booking_id, clock: Clock) -> BookingResponse:
+    booking = await owned_booking(session, customer_id, booking_id)
+    return confirmation(booking, clock())
+
+
+class BookingHistoryPage(PageQuery[Booking, BookingResponse]):
+    def __init__(self, customer_id: UUID, clock: Clock) -> None:
+        self.customer_id, self.clock = customer_id, clock
+
+    def statement(self) -> Select:
+        return select(Booking).where(Booking.customer_id == self.customer_id)
+
+    def order_by(self):
+        return (Booking.created_at.desc(), Booking.id)
+
+    def to_items(self, rows):
+        # One "now" per page so every row's computed status agrees.
+        now = self.clock()
+        return [confirmation(row, now) for row in rows]
+
+
+async def booking_history(
+    session, customer_id, page, page_size, clock: Clock
+) -> Paginated[BookingResponse]:
+    return await BookingHistoryPage(customer_id, clock).fetch(session, page, page_size)
+
+
