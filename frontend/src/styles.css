@@ -1,0 +1,77 @@
+/* ---------- Auth pages ---------- */
+.auth-wrap {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  min-height: 560px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  max-width: 980px;
+  margin: 1rem auto;
+}
+.auth-aside {
+  background: linear-gradient(150deg, #0f766e 0%, #134e4a 70%);
+  color: #ecfeff;
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+}
+.auth-aside h2 {
+  font-size: 1.7rem;
+  color: #fff;
+}
+.auth-aside ul {
+  padding-left: 1.1rem;
+  margin: 0;
+  opacity: 0.92;
+}
+.auth-aside li {
+  margin-bottom: 0.4rem;
+}
+.auth-form {
+  padding: 2.5rem;
+  align-self: center;
+}
+.auth-form .switch {
+  margin-top: 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+.role-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1.1rem;
+}
+.role-option {
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.role-option strong {
+  display: block;
+}
+.role-option span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.role-option.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.demo-box {
+  margin-top: 1.25rem;
+  padding: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
