@@ -83,3 +83,76 @@ async def test_lists_are_owned_paginated_filtered_and_stable(api):
     assert reference.status_code == 200 and len(reference.json()["data"]) == 6
 
 
+async def test_blocks_reject_reservations_but_allow_cancelled_and_adjacent_ranges(api, db):
+    booking = await db.get(Booking, demo_id("booking/8"))
+    request = {
+        "start_date": booking.check_in.isoformat(),
+        "end_date": booking.check_out.isoformat(),
+        "reason": "Maintenance",
+    }
+    assert (await api.post(path() + "/blocks", headers=auth(), json=request)).status_code == 409
+    request["start_date"] = booking.check_out.isoformat()
+    request["end_date"] = (booking.check_out + timedelta(days=1)).isoformat()
+    response = await api.post(path() + "/blocks", headers=auth(), json=request)
+    assert response.status_code == 201
+    identifier = response.json()["data"]["id"]
+    assert (await api.post(path() + "/blocks", headers=auth(), json=request)).status_code == 409
+    assert (await api.get(path() + "/blocks", headers=auth())).json()["pagination"][
+        "total_items"
+    ] == 2
+    assert (await api.delete(path() + f"/blocks/{identifier}", headers=auth())).json()["data"][
+        "deleted"
+    ]
+    cancelled = await db.get(Booking, demo_id("booking/9"))
+    request.update(
+        start_date=cancelled.check_in.isoformat(), end_date=cancelled.check_out.isoformat()
+    )
+    assert (
+        await api.post(path(1) + "/blocks", headers=auth("host2"), json=request)
+    ).status_code == 201
+
+
+async def test_future_location_capacity_and_windows_are_protected(api, db):
+    for change in (
+        {"timezone": "America/New_York"},
+        {"zip_code": "02108"},
+        {"latitude": "38.000000"},
+        {"address_line1": "New address"},
+        {"max_guests": 1},
+    ):
+        response = await api.patch(path(), headers=auth(), json=change)
+        assert response.status_code == 409, response.text
+    proposed = rules()
+    booking = await db.get(Booking, demo_id("booking/8"))
+    proposed[booking.check_in.weekday()].update(
+        arrival_allowed=False, arrival_start=None, arrival_end=None, arrival_default=None
+    )
+    assert (
+        await api.put(path() + "/booking-rules", headers=auth(), json={"booking_rules": proposed})
+    ).status_code == 409
+    proposed = rules()
+    for rule in proposed:
+        rule["arrival_default"] = "16:00"
+    accepted = await api.put(
+        path() + "/booking-rules", headers=auth(), json={"booking_rules": proposed}
+    )
+    assert accepted.status_code == 200 and accepted.json()["data"]["status"] == "APPROVED"
+    assert (
+        await api.put(
+            path() + "/hours",
+            headers=auth(),
+            json={"hours": [{"weekday": day, "closed": True} for day in range(7)]},
+        )
+    ).json()["data"]["status"] == "APPROVED"
+    await db.refresh(booking)
+    assert booking.arrival_at.astimezone(ZoneInfo("America/Los_Angeles")).hour == 15
+
+
+async def test_concurrent_overlapping_blocks_have_one_winner(api):
+    responses = await asyncio.gather(
+        api.post(path() + "/blocks", headers=auth(), json=block()),
+        api.post(path() + "/blocks", headers=auth(), json=block()),
+    )
+    assert sorted(response.status_code for response in responses) == [201, 409]
+
+
