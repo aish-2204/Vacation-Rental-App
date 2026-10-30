@@ -1,5 +1,6 @@
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import Layout, { RequireAuth } from './components/Layout';
+import Login from './pages/Login';
 
 function NotFound() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         {/* Public */}
+        <Route path="login" element={<Login />} />
 
 
         <Route path="*" element={<NotFound />} />
