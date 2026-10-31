@@ -234,3 +234,41 @@ async def booking_history(
     return await BookingHistoryPage(customer_id, clock).fetch(session, page, page_size)
 
 
+async def cancel_booking(session, customer_id, booking_id, clock: Clock) -> BookingResponse:
+    try:
+        # Read only the owned parent ID first; do not lock a booking before its
+        # listing, and never lock a foreign customer's listing on their behalf.
+        listing_id = await session.scalar(
+            select(Booking.listing_id).where(
+                Booking.id == booking_id, Booking.customer_id == customer_id
+            )
+        )
+        if listing_id is None:
+            raise APIError(404, "NOT_FOUND", "Booking not found")
+        await listings.lock_listing(session, listing_id)
+        booking = await owned_booking(session, customer_id, booking_id, lock=True)
+        now = clock()
+        if booking.reservation_state != ReservationState.CANCELLED:
+            if now >= booking.arrival_at:
+                raise APIError(409, "CANCELLATION_CLOSED", "Cancellation closes at arrival")
+            # Explicit UPDATE includes updated_at even if a frozen clock equals
+            # the original timestamp; ORM onupdate must not substitute DB time.
+            booking = (
+                await session.scalars(
+                    update(Booking)
+                    .where(Booking.id == booking.id)
+                    .values(
+                        reservation_state=ReservationState.CANCELLED,
+                        cancelled_at=now,
+                        updated_at=now,
+                    )
+                    .returning(Booking)
+                    .execution_options(populate_existing=True)
+                )
+            ).one()
+        result = confirmation(booking, now)
+        await session.commit()
+        return result
+    except Exception:
+        await session.rollback()
+        raise
