@@ -224,3 +224,216 @@ async def test_daily_calendar_buckets_are_zero_filled_clipped_and_contiguous(
     reconcile(data)
 
 
+async def test_admin_is_sum_of_all_host_scopes(api, db, clock):
+    await curated_data(db, clock)
+    hosts = (await db.scalars(select(User.id).where(User.role == Role.HOST))).all()
+    parts = [
+        (await api.get(HOST, headers=auth(user_id=identifier))).json()["data"]
+        for identifier in hosts
+    ]
+    admin = (await api.get(ADMIN, headers=auth("admin"))).json()["data"]
+    for key in (
+        "total_listings",
+        "new_listings_in_period",
+        "bookings_created",
+        "cancelled_bookings",
+        "net_bookings",
+    ):
+        assert admin[key] == sum(part[key] for part in parts)
+    assert Decimal(admin["booking_value_usd"]) == sum(
+        Decimal(part["booking_value_usd"]) for part in parts
+    )
+    for status in admin["listing_status_counts"]:
+        assert admin["listing_status_counts"][status] == sum(
+            part["listing_status_counts"][status] for part in parts
+        )
+    reconcile(admin)
+
+
+async def test_seed_window_fixtures_match_independent_python_counts(api, db, clock):
+    # No new fixture population: exercise the original exact 30/60/90-day seed edges.
+    bookings = (await db.scalars(select(Booking))).all()
+    for period in (30, 60, 90):
+        start = clock[0] - timedelta(days=period)
+        selected = [booking for booking in bookings if start <= booking.created_at < clock[0]]
+        cancelled = [booking for booking in selected if booking.reservation_state == "CANCELLED"]
+        data = (await api.get(ADMIN, headers=auth("admin"), params={"period_days": period})).json()[
+            "data"
+        ]
+        assert data["bookings_created"] == len(selected) and data["cancelled_bookings"] == len(
+            cancelled
+        )
+        assert Decimal(data["booking_value_usd"]) == sum(
+            (booking.total_cost for booking in selected if booking not in cancelled),
+            Decimal("0.00"),
+        )
+        reconcile(data)
+
+
+async def test_utc_grouping_ignores_database_and_listing_timezones(
+    api, db, clock, database_timezone
+):
+    clock[0] = datetime(2027, 3, 15, 12, tzinfo=UTC).astimezone(ZoneInfo("America/Los_Angeles"))
+    database_timezone[0] = "Pacific/Honolulu"
+    listing = await add_listing(db, clock[0] - timedelta(days=40))
+    for index, created in enumerate(
+        [datetime(2027, 3, 14, 23, 59, 59, tzinfo=UTC), datetime(2027, 3, 15, 0, 0, tzinfo=UTC)]
+    ):
+        await add_booking(db, clock, listing, created, price="11.11", offset=500 + index * 4)
+    await db.commit()
+    data = (await api.get(ADMIN, headers=auth("admin"), params={"zip_code": "99999"})).json()[
+        "data"
+    ]
+    assert datetime.fromisoformat(data["window_end"]) == datetime(2027, 3, 15, 12, tzinfo=UTC)
+    assert datetime.fromisoformat(data["window_end"]) - datetime.fromisoformat(
+        data["window_start"]
+    ) == timedelta(days=30)
+    active = [row for row in data["daily_bookings"] if row["bookings_created"]]
+    assert [row["date"] for row in active] == ["2027-03-14", "2027-03-15"]
+    assert [row["booking_value_usd"] for row in active] == ["11.11", "11.11"]
+    reconcile(data)
+
+
+async def test_price_edits_preserve_booking_value_and_cancelled_older_creations_stay_out(
+    api, db, clock
+):
+    hosts, listings, bookings = await curated_data(db, clock)
+    # Aggregation fixtures need no children, but an actual edit to an APPROVED
+    # listing rightly revalidates approval completeness. Copy valid form rows
+    # into this disposable fixture before exercising the Host edit API.
+    for model in (ListingHours, ListingBookingRule, ListingMedia):
+        originals = (
+            await db.scalars(select(model).where(model.listing_id == demo_id("listing/0")))
+        ).all()
+        for original in originals:
+            values = {
+                column.name: getattr(original, column.name) for column in model.__table__.columns
+            }
+            values.update(id=uuid4(), listing_id=listings[0].id)
+            db.add(model(**values))
+    await db.commit()
+    path = f"/api/v1/host/listings/{listings[0].id}"
+    changed = await api.patch(
+        path, headers=auth(user_id=hosts[0].id), json={"nightly_price": "999.99"}
+    )
+    assert changed.status_code == 200, changed.text
+    older = await add_booking(
+        db, clock, listings[0], clock[0] - timedelta(days=100), cancelled=True, offset=900
+    )
+    older.cancelled_at = clock[0] - timedelta(hours=1)
+    await db.commit()
+    data = (await api.get(HOST, headers=auth(user_id=hosts[0].id))).json()["data"]
+    assert (
+        data["booking_value_usd"] == "400.40"
+        and data["bookings_created"] == 3
+        and data["cancelled_bookings"] == 1
+    )
+    assert bookings[0].total_cost == Decimal("100.10")
+    reconcile(data)
+
+
+async def test_empty_host_and_large_money_totals_are_valid(api, db, clock):
+    hosts, _, _ = await curated_data(db, clock)
+    # Aggregate money is not limited to one booking's NUMERIC(10,2) range.
+    listing = await add_listing(
+        db, clock[0] - timedelta(days=1), host_id=hosts[0].id, zip_code="00004"
+    )
+    for index in range(2):
+        await add_booking(
+            db,
+            clock,
+            listing,
+            clock[0] - timedelta(hours=1),
+            price="99999999.99",
+            offset=900 + index * 4,
+        )
+    await db.commit()
+    data = (
+        await api.get(HOST, headers=auth(user_id=hosts[0].id), params={"zip_code": "00004"})
+    ).json()["data"]
+    assert data["booking_value_usd"] == "199999999.98" and data["net_bookings"] == 2
+    template = await db.get(User, hosts[0].id)
+    identifier = uuid4()
+    db.add(
+        User(
+            id=identifier,
+            name="Empty Host",
+            email=f"{identifier}@example.test",
+            password_hash=template.password_hash,
+            phone="+15550100100",
+            role=Role.HOST,
+            created_at=clock[0],
+            updated_at=clock[0],
+        )
+    )
+    await db.commit()
+    empty = (await api.get(HOST, headers=auth(user_id=identifier))).json()["data"]
+    assert empty["total_listings"] == empty["new_listings_in_period"] == 0
+    assert (
+        empty["booking_value_usd"] == "0.00"
+        and empty["rentals_by_zip"] == empty["bookings_by_zip"] == []
+    )
+    reconcile(empty)
+
+
+async def test_known_other_host_scope_injection_is_denied_and_reads_are_private(api, db, clock):
+    hosts, _, _ = await curated_data(db, clock)
+    denied = await api.get(
+        HOST, headers=auth(user_id=hosts[0].id), params={"host_id": str(hosts[1].id)}
+    )
+    assert denied.status_code == 422
+    data = (await api.get(HOST, headers=auth(user_id=hosts[0].id))).json()["data"]
+    assert data["total_listings"] == 2 and data["booking_value_usd"] == "400.40"
+    assert set(data) == {
+        "scope",
+        "period_days",
+        "zip_code",
+        "window_start",
+        "window_end",
+        "timezone",
+        "currency",
+        "total_listings",
+        "listing_status_counts",
+        "new_listings_in_period",
+        "rentals_by_zip",
+        "bookings_created",
+        "cancelled_bookings",
+        "net_bookings",
+        "booking_value_usd",
+        "bookings_by_zip",
+        "daily_bookings",
+    }
+    for forbidden in ("customer_id", "booking_id", "email", "password_hash", "revenue", "host_id"):
+        assert forbidden not in str(data)
+    reconcile(data)
+
+
+async def test_zip_plus_four_filters_both_populations_and_all_cancelled_values_are_zero(
+    api, db, clock
+):
+    hosts, _, _ = await curated_data(db, clock)
+    listing = await add_listing(
+        db, clock[0] - timedelta(days=1), host_id=hosts[0].id, zip_code="02108-1234"
+    )
+    for index in range(2):
+        await add_booking(
+            db,
+            clock,
+            listing,
+            clock[0] - timedelta(hours=1),
+            cancelled=True,
+            offset=950 + index * 4,
+        )
+    await db.commit()
+    data = (
+        await api.get(HOST, headers=auth(user_id=hosts[0].id), params={"zip_code": "02108-1234"})
+    ).json()["data"]
+    assert data["total_listings"] == data["new_listings_in_period"] == 1
+    assert metrics(data) == {
+        "bookings_created": 2,
+        "cancelled_bookings": 2,
+        "net_bookings": 0,
+        "booking_value_usd": "0.00",
+    }
+    assert data["rentals_by_zip"] == [{"zip_code": "02108-1234", "total_listings": 1}]
+    reconcile(data)
