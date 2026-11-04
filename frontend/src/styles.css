@@ -660,3 +660,39 @@ td.actions .btn + .btn {
   font-size: 0.85rem;
 }
 
+/* ---------- Analytics ---------- */
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.stat .label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.stat .value {
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+.chart {
+  width: 100%;
+  height: auto;
+}
+.legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+}
+
