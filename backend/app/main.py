@@ -15,6 +15,7 @@ from app.middleware.errors import (
     validation_error_handler,
 )
 from app.middleware.request_id import RequestIDMiddleware
+from app.routers.admin import router as admin_router
 from app.routers.analytics import router as analytics_router
 from app.routers.auth import router as auth_router
 from app.routers.bookings import router as bookings_router
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     application.include_router(health_router)
     application.include_router(auth_router, prefix="/api/v1")
     application.include_router(host_router, prefix="/api/v1")
+    application.include_router(admin_router, prefix="/api/v1")
     application.include_router(listings_router, prefix="/api/v1")
     application.include_router(bookings_router, prefix="/api/v1")
     application.include_router(analytics_router, prefix="/api/v1")
