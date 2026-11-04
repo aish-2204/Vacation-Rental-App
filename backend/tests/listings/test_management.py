@@ -16,6 +16,60 @@ from seed.demo import demo_id
 from tests.listings.helpers import admin_path, auth, block, create, hours, path, payload, rules
 
 
+async def test_complete_lifecycle_and_material_reapproval(api):
+    listing = await create(api)
+    identifier = listing["id"]
+    owned = f"/api/v1/host/listings/{identifier}"
+    moderation = admin_path(identifier)
+    assert listing["status"] == "PENDING" and listing["nightly_price"] == "150.00"
+    assert listing["cost_rating"] == "$$" and len(listing["hours"]) == 7
+    assert listing["hours"][0]["opening_time"] == "09:00"
+    assert listing["booking_rules"][0]["arrival_default"] == "15:00"
+    assert (await api.patch(moderation + "/approve", headers=auth("admin"))).status_code == 200
+    response = await api.patch(
+        owned, headers=auth(), json={"nightly_price": "175.00", "contact_name": "Updated contact"}
+    )
+    assert response.status_code == 200 and response.json()["data"]["status"] == "APPROVED"
+    added = await api.post(
+        owned + "/media", headers=auth(), json={"url": "https://example.test/second.jpg"}
+    )
+    assert added.status_code == 201
+    assert (await api.get(owned, headers=auth())).json()["data"]["status"] == "PENDING"
+    assert (await api.patch(moderation + "/approve", headers=auth("admin"))).status_code == 200
+    updated = await api.patch(
+        owned + "/media/" + added.json()["data"]["id"],
+        headers=auth(),
+        json={"url": "https://example.test/replaced.jpg", "sort_order": 4, "caption": None},
+    )
+    assert updated.status_code == 200 and updated.json()["data"]["sort_order"] == 4
+    assert (await api.get(owned, headers=auth())).json()["data"]["status"] == "PENDING"
+    deleted = await api.delete(owned + "/media/" + added.json()["data"]["id"], headers=auth())
+    assert deleted.status_code == 200 and deleted.json()["data"]["deleted"] is True
+    rejected = await api.patch(
+        moderation + "/reject", headers=auth("admin"), json={"reason": "Fix description"}
+    )
+    assert rejected.status_code == 200 and rejected.json()["data"]["status"] == "REJECTED"
+    response = await api.patch(owned, headers=auth(), json={"description": "Corrected description"})
+    assert response.status_code == 200 and response.json()["data"]["status"] == "PENDING"
+    response = await api.patch(moderation + "/approve", headers=auth("admin"))
+    assert response.status_code == 200
+    # Actual effective changes trigger review, while a no-op patch does not.
+    same = await api.patch(owned, headers=auth(), json={"name": listing["name"]})
+    assert same.json()["data"]["status"] == "APPROVED"
+    changed = await api.patch(owned, headers=auth(), json={"name": "Material rename"})
+    assert changed.json()["data"]["status"] == "PENDING"
+    audit = await api.get(
+        "/api/v1/admin/audit-actions", params={"listing_id": identifier}, headers=auth("admin")
+    )
+    assert audit.status_code == 200
+    assert sorted(item["action"] for item in audit.json()["data"]) == [
+        "APPROVED",
+        "APPROVED",
+        "APPROVED",
+        "REJECTED",
+    ]
+
+
 async def test_incomplete_draft_reports_missing_fields_and_can_be_completed(api):
     listing = await create(api, complete=False)
     identifier = listing["id"]
@@ -49,6 +103,24 @@ async def test_incomplete_draft_reports_missing_fields_and_can_be_completed(api)
     assert (await api.patch(moderation + "/approve", headers=auth("admin"))).json()["data"][
         "status"
     ] == "APPROVED"
+
+
+@pytest.mark.parametrize("actor", ["host1", "customer", None])
+async def test_all_admin_operations_require_admin(api, actor):
+    headers = auth(actor) if actor else {}
+    expected = 403 if actor else 401
+    for method, endpoint, body in [
+        ("GET", "/api/v1/admin/listings", None),
+        ("GET", "/api/v1/admin/listings/pending", None),
+        ("GET", admin_path(demo_id("listing/0")), None),
+        ("PATCH", admin_path(demo_id("listing/8")) + "/approve", None),
+        ("PATCH", admin_path(demo_id("listing/8")) + "/reject", {"reason": "Not allowed"}),
+        ("DELETE", admin_path(demo_id("listing/0")), {"reason": "Not allowed"}),
+        ("GET", "/api/v1/admin/audit-actions", None),
+    ]:
+        assert (
+            await api.request(method, endpoint, headers=headers, json=body)
+        ).status_code == expected
 
 
 async def test_lists_are_owned_paginated_filtered_and_stable(api):
@@ -156,3 +228,36 @@ async def test_concurrent_overlapping_blocks_have_one_winner(api):
     assert sorted(response.status_code for response in responses) == [201, 409]
 
 
+async def test_waiting_writer_rechecks_removed_state_after_lock(api, database_engine, monkeypatch):
+    engine, _ = database_engine
+    original = listings.lock_listing
+    waiting = asyncio.Event()
+    task = None
+    async with AsyncSession(engine, expire_on_commit=False) as holder:
+        await original(holder, demo_id("listing/0"), host_id=demo_id("user/1"))
+
+        async def instrumented(session, *args, **kwargs):
+            if session is not holder:
+                waiting.set()
+            return await original(session, *args, **kwargs)
+
+        monkeypatch.setattr(listings, "lock_listing", instrumented)
+        try:
+            task = asyncio.create_task(
+                api.patch(path(), headers=auth(), json={"name": "Queued edit"})
+            )
+            await asyncio.wait_for(waiting.wait(), timeout=5)
+            assert not task.done()
+            await RemoveListingCommand(
+                demo_id("user/1"),
+                demo_id("listing/0"),
+                "Removed while another writer waited",
+                HostScope(demo_id("user/1")),
+            ).execute(holder)
+            response = await asyncio.wait_for(task, timeout=5)
+            assert response.status_code == 409
+            assert response.json()["error"]["code"] == "LISTING_REMOVED"
+        finally:
+            if task and not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
