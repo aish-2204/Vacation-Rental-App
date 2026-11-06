@@ -7,3 +7,21 @@ export const auth = {
   me: () => api.get('/auth/me'),
 };
 
+export const hostApi = {
+  amenities: () => api.get('/host/amenities'),
+  list: (params) => api.get('/host/listings', params),
+  create: (body) => api.post('/host/listings', body),
+  get: (id) => api.get(`/host/listings/${id}`),
+  patch: (id, body) => api.patch(`/host/listings/${id}`, body),
+  remove: (id, reason) => api.del(`/host/listings/${id}`, { reason }),
+  replaceHours: (id, hours) => api.put(`/host/listings/${id}/hours`, { hours }),
+  replaceRules: (id, booking_rules) =>
+    api.put(`/host/listings/${id}/booking-rules`, { booking_rules }),
+  blocks: (id, params) => api.get(`/host/listings/${id}/blocks`, params),
+  addBlock: (id, body) => api.post(`/host/listings/${id}/blocks`, body),
+  deleteBlock: (id, blockId) => api.del(`/host/listings/${id}/blocks/${blockId}`),
+  addMedia: (id, body) => api.post(`/host/listings/${id}/media`, body),
+  patchMedia: (id, mediaId, body) => api.patch(`/host/listings/${id}/media/${mediaId}`, body),
+  deleteMedia: (id, mediaId) => api.del(`/host/listings/${id}/media/${mediaId}`),
+};
+
