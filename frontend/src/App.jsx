@@ -2,6 +2,7 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import Layout, { RequireAuth } from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Search from './pages/Search';
 import HostListings from './pages/host/HostListings';
 
 function NotFound() {
@@ -21,6 +22,7 @@ export default function App() {
     <Routes>
       <Route element={<Layout />}>
         {/* Public */}
+        <Route index element={<Search />} />
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
 
