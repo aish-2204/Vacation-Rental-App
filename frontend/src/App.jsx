@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Search from './pages/Search';
 import HostListings from './pages/host/HostListings';
+import ListingEditor from './pages/host/ListingEditor';
 
 function NotFound() {
   return (
@@ -37,6 +38,23 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="host/listings/new"
+          element={
+            <RequireAuth roles={['HOST']}>
+              <ListingEditor />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="host/listings/:id"
+          element={
+            <RequireAuth roles={['HOST']}>
+              <ListingEditor />
+            </RequireAuth>
+          }
+        />
+
 
         <Route path="*" element={<NotFound />} />
       </Route>
