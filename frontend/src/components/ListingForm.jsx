@@ -131,3 +131,91 @@ export function DetailsFields({ form, setForm, errors = {}, amenities = [] }) {
   );
 }
 
+export function HoursEditor({ rows, onChange }) {
+  const update = (index, patch) => onChange(rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  return (
+    <div className="table-wrap">
+      <table className="week-table">
+        <thead>
+          <tr>
+            <th>Day</th>
+            <th>Closed</th>
+            <th>Opens</th>
+            <th>Closes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.weekday}>
+              <td>{WEEKDAYS[r.weekday]}</td>
+              <td>
+                <input type="checkbox" checked={r.closed} onChange={(e) => update(i, { closed: e.target.checked })} aria-label={`${WEEKDAYS[r.weekday]} closed`} />
+              </td>
+              <td>
+                <input type="time" value={r.opening_time} disabled={r.closed} onChange={(e) => update(i, { opening_time: e.target.value })} aria-label={`${WEEKDAYS[r.weekday]} opening time`} />
+              </td>
+              <td>
+                <input type="time" value={r.closing_time} disabled={r.closed} onChange={(e) => update(i, { closing_time: e.target.value })} aria-label={`${WEEKDAYS[r.weekday]} closing time`} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function RulesEditor({ rows, onChange }) {
+  const update = (index, patch) => onChange(rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  const time = (r, i, field, disabled) => (
+    <input
+      type="time"
+      value={r[field]}
+      disabled={disabled}
+      onChange={(e) => update(i, { [field]: e.target.value })}
+      aria-label={`${WEEKDAYS[r.weekday]} ${field.replace('_', ' ')}`}
+    />
+  );
+  return (
+    <div className="table-wrap">
+      <table className="week-table">
+        <thead>
+          <tr>
+            <th rowSpan={2}>Day</th>
+            <th colSpan={4}>Arrival</th>
+            <th colSpan={4}>Departure</th>
+          </tr>
+          <tr>
+            <th>Allowed</th>
+            <th>From</th>
+            <th>Until</th>
+            <th>Default</th>
+            <th>Allowed</th>
+            <th>From</th>
+            <th>Until</th>
+            <th>Default</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={r.weekday}>
+              <td>{WEEKDAYS[r.weekday]}</td>
+              <td>
+                <input type="checkbox" checked={r.arrival_allowed} onChange={(e) => update(i, { arrival_allowed: e.target.checked })} aria-label={`${WEEKDAYS[r.weekday]} arrival allowed`} />
+              </td>
+              <td>{time(r, i, 'arrival_start', !r.arrival_allowed)}</td>
+              <td>{time(r, i, 'arrival_end', !r.arrival_allowed)}</td>
+              <td>{time(r, i, 'arrival_default', !r.arrival_allowed)}</td>
+              <td>
+                <input type="checkbox" checked={r.departure_allowed} onChange={(e) => update(i, { departure_allowed: e.target.checked })} aria-label={`${WEEKDAYS[r.weekday]} departure allowed`} />
+              </td>
+              <td>{time(r, i, 'departure_start', !r.departure_allowed)}</td>
+              <td>{time(r, i, 'departure_end', !r.departure_allowed)}</td>
+              <td>{time(r, i, 'departure_default', !r.departure_allowed)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
