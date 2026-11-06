@@ -119,6 +119,77 @@ function Welcome({ user }) {
   );
 }
 
+function ResultRow({ listing: l, stay }) {
+  const images = l.media.filter((m) => m.media_type === 'IMAGE');
+  const videos = l.media.length - images.length;
+  const cover = [...images].sort((a, b) => a.sort_order - b.sort_order)[0];
+  const hasDates = stay.check_in && stay.check_out;
+  const qs = stayQuery(stay);
+  return (
+    <article className="card result-row">
+      <Link to={`/listings/${l.id}${qs}`} className="row-thumb">
+        {cover ? <img src={cover.url} alt={cover.caption || l.name} loading="lazy" /> : <span>No photo</span>}
+      </Link>
+      <div className="row-body">
+        <h3>
+          <Link to={`/listings/${l.id}${qs}`}>{l.name}</Link>
+        </h3>
+        <div className="muted small">
+          {l.city}, {l.state} {l.zip_code} · up to {l.max_guests} guests · {images.length} photo{images.length === 1 ? '' : 's'}
+          {videos > 0 ? `, ${videos} video${videos === 1 ? '' : 's'}` : ''}
+          {l.distance_km != null && ` · ${l.distance_km.toFixed(1)} km away`}
+        </div>
+        {l.amenities.length > 0 && (
+          <div className="chips">
+            {l.amenities.slice(0, 4).map((a) => (
+              <span className="chip" key={a.id}>
+                {a.name}
+              </span>
+            ))}
+            {l.amenities.length > 4 && <span className="chip">+{l.amenities.length - 4}</span>}
+          </div>
+        )}
+        <div className="small">
+          {l.average_rating != null ? (
+            <>
+              <span className="stars">{'★'.repeat(Math.round(l.average_rating))}</span> {l.average_rating.toFixed(1)} · {l.review_count} review
+              {l.review_count === 1 ? '' : 's'}
+            </>
+          ) : (
+            <span className="muted">No reviews yet</span>
+          )}
+          {l.bookings_today > 0 && <span style={{ color: 'var(--warn)' }}> · Booked {l.bookings_today} time{l.bookings_today > 1 ? 's' : ''} today</span>}
+        </div>
+        <div>
+          <span className="price">{money(l.nightly_price, l.currency)}</span>
+          <span className="muted small">/night</span>
+          {l.total_cost && (
+            <span className="small">
+              {' '}
+              · <strong>{money(l.total_cost, l.currency)}</strong> total
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="row-action">
+        {l.available === false ? (
+          <button className="btn" disabled>
+            Not available
+          </button>
+        ) : hasDates ? (
+          <Link to={`/listings/${l.id}/book${qs}`} className="btn">
+            Book
+          </Link>
+        ) : (
+          <Link to={`/listings/${l.id}`} className="btn btn-secondary">
+            View
+          </Link>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export default function Search() {
   const { user } = useAuth();
   const navigate = useNavigate();
