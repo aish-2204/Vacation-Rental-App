@@ -7,6 +7,14 @@ export const auth = {
   me: () => api.get('/auth/me'),
 };
 
+export const publicApi = {
+  amenities: () => api.get('/amenities', undefined, { auth: false }),
+  search: (params) => api.get('/listings/search', params, { auth: false }),
+  detail: (id, params) => api.get(`/listings/${id}`, params, { auth: false }),
+  availability: (id, params) => api.get(`/listings/${id}/availability`, params, { auth: false }),
+  reviews: (id, params) => api.get(`/listings/${id}/reviews`, params, { auth: false }),
+};
+
 export const hostApi = {
   amenities: () => api.get('/host/amenities'),
   list: (params) => api.get('/host/listings', params),
