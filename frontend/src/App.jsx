@@ -2,6 +2,7 @@ import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import Layout, { RequireAuth } from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import HostListings from './pages/host/HostListings';
 
 function NotFound() {
   return (
@@ -23,6 +24,17 @@ export default function App() {
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
 
+
+        {/* Host */}
+        <Route path="host" element={<Navigate to="/host/listings" replace />} />
+        <Route
+          path="host/listings"
+          element={
+            <RequireAuth roles={['HOST']}>
+              <HostListings />
+            </RequireAuth>
+          }
+        />
 
         <Route path="*" element={<NotFound />} />
       </Route>
