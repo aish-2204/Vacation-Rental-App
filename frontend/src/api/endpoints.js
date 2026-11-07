@@ -15,6 +15,13 @@ export const publicApi = {
   reviews: (id, params) => api.get(`/listings/${id}/reviews`, params, { auth: false }),
 };
 
+export const bookingsApi = {
+  create: (body) => api.post('/bookings', body),
+  mine: (params) => api.get('/bookings/my', params),
+  get: (id) => api.get(`/bookings/${id}`),
+  cancel: (id) => api.patch(`/bookings/${id}/cancel`),
+};
+
 export const hostApi = {
   amenities: () => api.get('/host/amenities'),
   list: (params) => api.get('/host/listings', params),
