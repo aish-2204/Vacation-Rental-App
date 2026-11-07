@@ -3,6 +3,7 @@ import Layout, { RequireAuth } from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Search from './pages/Search';
+import HostAnalytics from './pages/host/HostAnalytics';
 import HostListings from './pages/host/HostListings';
 import ListingEditor from './pages/host/ListingEditor';
 
@@ -55,6 +56,7 @@ export default function App() {
           }
         />
 
+        <Route path="host/analytics" element={<RequireAuth roles={['HOST']}><HostAnalytics /></RequireAuth>} />
 
         <Route path="*" element={<NotFound />} />
       </Route>

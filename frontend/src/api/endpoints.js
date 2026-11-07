@@ -31,5 +31,6 @@ export const hostApi = {
   addMedia: (id, body) => api.post(`/host/listings/${id}/media`, body),
   patchMedia: (id, mediaId, body) => api.patch(`/host/listings/${id}/media/${mediaId}`, body),
   deleteMedia: (id, mediaId) => api.del(`/host/listings/${id}/media/${mediaId}`),
+  analytics: (params) => api.get('/host/analytics', params),
 };
 
