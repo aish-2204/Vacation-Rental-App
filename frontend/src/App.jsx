@@ -5,6 +5,7 @@ import Register from './pages/Register';
 import Search from './pages/Search';
 import Checkout from './pages/Checkout';
 import HostAnalytics from './pages/host/HostAnalytics';
+import AdminAnalytics from './pages/admin/AdminAnalytics';
 import HostListings from './pages/host/HostListings';
 import ListingEditor from './pages/host/ListingEditor';
 
@@ -66,6 +67,10 @@ export default function App() {
         />
 
         <Route path="host/analytics" element={<RequireAuth roles={['HOST']}><HostAnalytics /></RequireAuth>} />
+
+        {/* Admin */}
+        <Route path="admin/analytics" element={<RequireAuth roles={['ADMIN']}><AdminAnalytics /></RequireAuth>} />
+        <Route path="admin" element={<Navigate to="/admin/listings" replace />} />
 
         <Route path="*" element={<NotFound />} />
       </Route>

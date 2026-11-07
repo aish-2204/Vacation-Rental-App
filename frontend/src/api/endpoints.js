@@ -41,3 +41,13 @@ export const hostApi = {
   analytics: (params) => api.get('/host/analytics', params),
 };
 
+export const adminApi = {
+  list: (params) => api.get('/admin/listings', params),
+  pending: (params) => api.get('/admin/listings/pending', params),
+  get: (id) => api.get(`/admin/listings/${id}`),
+  approve: (id) => api.patch(`/admin/listings/${id}/approve`),
+  reject: (id, reason) => api.patch(`/admin/listings/${id}/reject`, { reason }),
+  remove: (id, reason) => api.del(`/admin/listings/${id}`, { reason }),
+  audit: (params) => api.get('/admin/audit-actions', params),
+  analytics: (params) => api.get('/admin/analytics', params),
+};
