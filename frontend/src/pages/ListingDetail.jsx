@@ -120,6 +120,66 @@ function Schedule({ data }) {
   );
 }
 
+function BookingPanel({ listing, initial }) {
+  const { user } = useAuth();
+  const location = useLocation();
+  const today = todayISO();
+  const [stay, setStay] = useState({ check_in: initial.check_in || '', check_out: initial.check_out || '', guests: initial.guests || '1' });
+  const q = useQuote(listing.id, stay, listing.max_guests);
+  const set = (name) => (e) => setStay((s) => ({ ...s, [name]: e.target.value }));
+  const quote = q.result?.data;
+  const qs = new URLSearchParams(stay).toString();
+  const checkoutPath = `/listings/${listing.id}/book?${qs}`;
+  const unavailable = quote && !quote.available;
+
+  return (
+    <aside className="card booking-panel">
+      <div>
+        <span className="price" style={{ fontSize: '1.4rem' }}>{money(listing.nightly_price, listing.currency)}</span>
+        <span className="muted"> / night</span>
+      </div>
+      <div className="divider" />
+      <div className="form-row">
+        <Field label="Check-in" htmlFor="b-in">
+          <input id="b-in" type="date" min={today} value={stay.check_in}
+            onChange={(e) => setStay((s) => ({ ...s, check_in: e.target.value, check_out: s.check_out && s.check_out > e.target.value ? s.check_out : '' }))} />
+        </Field>
+        <Field label="Check-out" htmlFor="b-out">
+          <input id="b-out" type="date" min={stay.check_in ? addDaysISO(stay.check_in, 1) : today}
+            max={stay.check_in ? addDaysISO(stay.check_in, 14) : undefined} value={stay.check_out} onChange={set('check_out')} />
+        </Field>
+      </div>
+      <Field label="Guests" htmlFor="b-guests" hint={`Up to ${listing.max_guests}`}>
+        <input id="b-guests" type="number" min="1" max={listing.max_guests} value={stay.guests} onChange={set('guests')} />
+      </Field>
+
+      {q.problem && stay.check_in && stay.check_out && <Alert type="warn">{q.problem}</Alert>}
+      {q.loading && <p className="muted small">Checking availability…</p>}
+      {q.result?.error && <div className="alert alert-error">{errorText(q.result.error)}{q.result.error.status ? ` (${q.result.error.status})` : ''}</div>}
+      {unavailable && <Alert type="warn">Those dates are not available. Try different dates.</Alert>}
+      {quote?.available && (
+        <div>
+          <div className="quote-line"><span>{money(quote.quote.nightly_price)} × {quote.quote.nights} night{quote.quote.nights > 1 ? 's' : ''}</span><span>{money(quote.total_cost)}</span></div>
+          <div className="quote-line muted small"><span>Arrive</span><span>{fmtDate(quote.quote.check_in)} · {fmtTime(quote.quote.check_in_time)}</span></div>
+          <div className="quote-line muted small"><span>Depart</span><span>{fmtDate(quote.quote.check_out)} · {fmtTime(quote.quote.check_out_time)}</span></div>
+          <div className="quote-line quote-total"><span>Total</span><span>{money(quote.total_cost)}</span></div>
+        </div>
+      )}
+      {!user ? (
+        <Link to="/login" state={{ from: checkoutPath }} className={`btn btn-block ${quote?.available ? '' : 'disabled'}`} style={{ marginTop: '0.9rem' }}
+          onClick={(e) => !quote?.available && e.preventDefault()}>Log in to book</Link>
+      ) : user.role !== 'CUSTOMER' ? (
+        <div className="alert alert-info" style={{ marginTop: '0.9rem' }}>Only customer accounts can book stays.</div>
+      ) : quote?.available ? (
+        <Link to={checkoutPath} className="btn btn-block" style={{ marginTop: '0.9rem' }}>Book this stay</Link>
+      ) : (
+        <button className="btn btn-block" style={{ marginTop: '0.9rem' }} disabled>Book this stay</button>
+      )}
+      <p className="muted small" style={{ marginTop: '0.6rem' }}>You won't be charged yet. The server confirms the final price when you book.</p>
+    </aside>
+  );
+}
+
 export default function ListingDetail() {
   const { id } = useParams();
   const [sp] = useSearchParams();
