@@ -281,3 +281,120 @@ export function RulesTab({ listing, onChanged }) {
 }
 
 /* ----------------------------------------------------------- Blocked dates */
+export function BlocksTab({ listing }) {
+  const toast = useToast();
+  const [page, setPage] = useState(1);
+  const blocks = useAsync(() => hostApi.blocks(listing.id, { page, page_size: 10 }), [listing.id, page]);
+  const [form, setForm] = useState({ start_date: '', end_date: '', reason: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [local, setLocal] = useState('');
+  const [deleting, setDeleting] = useState(null);
+  const errors = fieldErrors(error);
+
+  async function add(event) {
+    event.preventDefault();
+    if (form.end_date <= form.start_date) return setLocal('End date must be after the start date.');
+    setLocal('');
+    setBusy(true);
+    setError(null);
+    try {
+      await hostApi.addBlock(listing.id, { ...form, reason: form.reason.trim() });
+      toast.success('Dates blocked.');
+      setForm({ start_date: '', end_date: '', reason: '' });
+      blocks.reload();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    await hostApi.deleteBlock(listing.id, deleting.id);
+    toast.success('Block removed.');
+    setDeleting(null);
+    blocks.reload();
+  }
+
+  return (
+    <div className="stack">
+      <section className="card">
+        <h2>Block dates</h2>
+        <p className="muted">Make nights unavailable (e.g. maintenance). The end date is the first night that is open again; nights with accepted stays cannot be blocked.</p>
+        {local && <div className="alert alert-error">{local}</div>}
+        <ErrorAlert error={error} hideDetails={Object.keys(errors).length > 0} />
+        <form onSubmit={add}>
+          <div className="form-row">
+            <Field label="Start date" htmlFor="b-start" error={errors.start_date}>
+              <input id="b-start" type="date" value={form.start_date} onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))} required />
+            </Field>
+            <Field label="End date (exclusive)" htmlFor="b-end" error={errors.end_date}>
+              <input id="b-end" type="date" value={form.end_date} onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))} required />
+            </Field>
+          </div>
+          <Field label="Reason" htmlFor="b-reason" error={errors.reason}>
+            <input id="b-reason" type="text" value={form.reason} onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))} required />
+          </Field>
+          <button className="btn" disabled={busy}>
+            {busy ? 'Blocking…' : 'Block dates'}
+          </button>
+        </form>
+      </section>
+
+      <section className="card card-flush">
+        <div style={{ padding: '1.25rem 1.25rem 0' }}>
+          <h2>Blocked ranges</h2>
+        </div>
+        <ErrorAlert error={blocks.error} />
+        {blocks.loading && !blocks.data ? (
+          <Spinner />
+        ) : blocks.data?.data.length === 0 ? (
+          <Empty title="No blocked dates" />
+        ) : (
+          blocks.data && (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>From</th>
+                    <th>Until</th>
+                    <th>Reason</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {blocks.data.data.map((b) => (
+                    <tr key={b.id}>
+                      <td>{fmtDate(b.start_date)}</td>
+                      <td>{fmtDate(b.end_date)}</td>
+                      <td>{b.reason}</td>
+                      <td className="actions">
+                        <button className="btn btn-danger btn-sm" onClick={() => setDeleting(b)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        )}
+        <div style={{ padding: '0 1.25rem 1rem' }}>
+          <Pagination pagination={blocks.data?.pagination} onPage={setPage} />
+        </div>
+      </section>
+
+      {deleting && (
+        <ConfirmModal
+          title="Remove this block?"
+          message={`${fmtDate(deleting.start_date)} – ${fmtDate(deleting.end_date)} will become bookable again.`}
+          confirmLabel="Remove block"
+          onConfirm={remove}
+          onClose={() => setDeleting(null)}
+        />
+      )}
+    </div>
+  );
+}
