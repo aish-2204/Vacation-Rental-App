@@ -3,6 +3,7 @@ import Layout, { RequireAuth } from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Search from './pages/Search';
+import ListingDetail from './pages/ListingDetail';
 import Checkout from './pages/Checkout';
 import HostAnalytics from './pages/host/HostAnalytics';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
@@ -27,6 +28,7 @@ export default function App() {
       <Route element={<Layout />}>
         {/* Public */}
         <Route index element={<Search />} />
+        <Route path="listings/:id" element={<ListingDetail />} />
         <Route
           path="listings/:id/book"
           element={
