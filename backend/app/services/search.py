@@ -16,6 +16,7 @@ from app.models import (
     ListingBookingRule,
     ListingHours,
     ListingMedia,
+    Review,
 )
 from app.models.enums import ListingStatus, ReservationState
 from app.schemas.common import Paginated
@@ -36,6 +37,7 @@ from app.services.availability import (
 )
 from app.services.listings import cost_rating
 from app.services.pagination import pagination
+from app.services.reviews import eligible_reviews
 from app.services.search_filters import search_filters
 
 
@@ -84,6 +86,16 @@ async def load_related(session: AsyncSession, ids: list[UUID], now: datetime) ->
     ):
         amenities[listing_id].append(amenity)
     ratings = {}
+    for listing_id, average, count in await session.execute(
+        select(Booking.listing_id, func.avg(Review.rating), func.count(Review.id))
+        .join(Review, Review.booking_id == Booking.id)
+        .where(
+            Booking.listing_id.in_(ids),
+            *eligible_reviews(now),
+        )
+        .group_by(Booking.listing_id)
+    ):
+        ratings[listing_id] = round(float(average), 2), count
     local_created_date = func.timezone(Listing.timezone, Booking.created_at).cast(Date)
     local_today = func.timezone(Listing.timezone, literal(now, type_=DateTime(timezone=True))).cast(
         Date
