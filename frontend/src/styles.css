@@ -733,6 +733,67 @@ td.actions .btn + .btn {
   position: sticky;
   top: 80px;
 }
+.gallery-main {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: linear-gradient(135deg, #99f6e4, #fde68a);
+  display: grid;
+  place-items: center;
+}
+.gallery-main img,
+.gallery-main video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gallery-thumbs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  overflow-x: auto;
+}
+.gallery-thumbs button {
+  border: 2px solid transparent;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 84px;
+  height: 60px;
+  cursor: pointer;
+  background: #e2e8f0;
+  flex: none;
+}
+.gallery-thumbs button.active {
+  border-color: var(--primary);
+}
+.gallery-thumbs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.5rem;
+  align-items: start;
+}
+.booking-panel {
+  position: sticky;
+  top: 80px;
+}
+.quote-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+}
+.quote-total {
+  font-weight: 700;
+  font-size: 1.1rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.4rem;
+  padding-top: 0.6rem;
+}
 /* ---------- Analytics ---------- */
 .stat {
   display: flex;
