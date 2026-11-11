@@ -153,6 +153,29 @@ async def delete_block(listing_id: UUID, block_id: UUID, session: SessionDep, ho
 
 
 @router.post(
+    "/listings/{listing_id}/media/upload-url",
+    status_code=201,
+    response_model=Success[MediaUploadResponse],
+    summary="Get a short-lived upload URL for one photo or video",
+    description=(
+        "Step 1 of an upload: send the returned `headers` with the file bytes to `upload_url` "
+        "using `method`, then add the media with `url` = `public_url`. Nothing is saved until "
+        "then. JPEG/PNG/WebP images and MP4/WebM videos; size limits apply."
+    ),
+)
+async def media_upload_url(
+    listing_id: UUID,
+    request: MediaUploadRequest,
+    session: SessionDep,
+    host: HostUser,
+    storage: StorageDep,
+):
+    return Success(
+        data=await media.create_media_upload(session, storage, host.id, listing_id, request)
+    )
+
+
+@router.post(
     "/listings/{listing_id}/media",
     status_code=201,
     response_model=Success[MediaResponse],
