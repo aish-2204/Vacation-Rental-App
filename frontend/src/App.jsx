@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Search from './pages/Search';
 import ListingDetail from './pages/ListingDetail';
+import MyBookings from './pages/MyBookings';
 import Checkout from './pages/Checkout';
 import HostAnalytics from './pages/host/HostAnalytics';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
@@ -40,6 +41,15 @@ export default function App() {
         <Route path="login" element={<Login />} />
         <Route path="register" element={<Register />} />
 
+        {/* Customer */}
+        <Route
+          path="bookings"
+          element={
+            <RequireAuth roles={['CUSTOMER']}>
+              <MyBookings />
+            </RequireAuth>
+          }
+        />
 
         {/* Host */}
         <Route path="host" element={<Navigate to="/host/listings" replace />} />
