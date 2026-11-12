@@ -49,6 +49,43 @@ async def media_count(session: AsyncSession, listing_id: UUID) -> int:
     )
 
 
+async def create_media_upload(
+    session: AsyncSession,
+    storage: ObjectStorage,
+    host_id: UUID,
+    listing_id: UUID,
+    request: MediaUploadRequest,
+) -> MediaUploadResponse:
+    # Read-only checks: no media row is written until the Host saves the upload.
+    listing = await listings.get_listing(session, listing_id, host_id=host_id)
+    listings.ensure_mutable(listing)
+    if await media_count(session, listing.id) >= MAX_MEDIA_PER_LISTING:
+        raise listings.conflict(f"A listing supports at most {MAX_MEDIA_PER_LISTING} media URLs")
+    extension, media_type = MEDIA_CONTENT_TYPES[request.content_type]
+    max_bytes = max_bytes_for(media_type)
+    if request.size_bytes > max_bytes:
+        raise invalid_upload(
+            f"{media_type.value.title()} files can be at most {max_bytes} bytes",
+            field="size_bytes",
+            code="FILE_TOO_LARGE",
+        )
+    # The server chooses the key; client file names never reach storage paths.
+    key = f"listings/{listing.id}/{uuid4().hex}{extension}"
+    expires_at = datetime.now(UTC) + timedelta(seconds=get_settings().upload_url_ttl_seconds)
+    # Cap the upload at the declared size (providers that cannot enforce it are
+    # re-checked against the per-type limit in verify_stored_media).
+    ticket = storage.create_upload(key, request.content_type, request.size_bytes, expires_at)
+    return MediaUploadResponse(
+        upload_url=ticket.upload_url,
+        method=ticket.method,
+        headers=ticket.headers,
+        public_url=ticket.public_url,
+        media_type=media_type,
+        max_bytes=ticket.max_bytes,
+        expires_at=ticket.expires_at,
+    )
+
+
 async def verify_stored_media(
     storage: ObjectStorage, listing_id: UUID, url: str, media_type: MediaType
 ) -> None:

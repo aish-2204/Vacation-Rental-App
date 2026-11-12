@@ -220,6 +220,66 @@ async def test_future_location_capacity_and_windows_are_protected(api, db):
     assert booking.arrival_at.astimezone(ZoneInfo("America/Los_Angeles")).hour == 15
 
 
+@pytest.mark.parametrize("actor", ["host1", "admin"])
+async def test_terminal_removal_is_audited_idempotent_and_preserves_history(api, db, actor):
+    endpoint = path() if actor == "host1" else admin_path(demo_id("listing/0"))
+    booking = await db.get(Booking, demo_id("booking/8"))
+    saved = booking.total_cost, booking.check_in, booking.reservation_state
+    review_count = await db.scalar(select(func.count()).select_from(Review))
+    for reason in ("Initial removal reason", "Repeat must not rewrite history"):
+        response = await api.request(
+            "DELETE", endpoint, headers=auth(actor), json={"reason": reason}
+        )
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["status"] == "REMOVED" and data["removed_at"]
+        assert data["removal"]["reason"] == "Initial removal reason"
+        assert data["removal"]["actor_id"] == str(
+            demo_id("user/1" if actor == "host1" else "user/0")
+        )
+    removals = (
+        await db.scalars(
+            select(ListingRemoval).where(ListingRemoval.listing_id == demo_id("listing/0"))
+        )
+    ).all()
+    assert len(removals) == 1
+    await db.refresh(booking)
+    assert (booking.total_cost, booking.check_in, booking.reservation_state) == saved
+    assert booking.reservation_state == ReservationState.CONFIRMED
+    assert await db.scalar(select(func.count()).select_from(Review)) == review_count
+    audit_count = await db.scalar(
+        select(func.count())
+        .select_from(AdminAction)
+        .where(AdminAction.listing_id == demo_id("listing/0"), AdminAction.action == "REMOVED")
+    )
+    assert audit_count == (1 if actor == "admin" else 0)
+    assert (
+        await api.patch(path(), headers=auth(), json={"name": "Cannot revive"})
+    ).status_code == 409
+    assert (await api.post(path() + "/blocks", headers=auth(), json=block())).status_code == 409
+    assert (
+        await api.patch(admin_path(demo_id("listing/0")) + "/approve", headers=auth("admin"))
+    ).status_code == 409
+    assert (await api.get(path(), headers=auth())).status_code == 200
+
+
+async def test_existing_booking_snapshots_survive_permitted_listing_edits(api, db):
+    booking = await db.get(Booking, demo_id("booking/4"))
+    saved = booking.total_cost, booking.listing_name_snapshot, booking.listing_zip_snapshot
+    response = await api.patch(
+        path(4),
+        headers=auth(),
+        json={"name": "New name", "nightly_price": "399.99", "zip_code": "99999"},
+    )
+    assert response.status_code == 200 and response.json()["data"]["status"] == "PENDING"
+    await db.refresh(booking)
+    assert (
+        booking.total_cost,
+        booking.listing_name_snapshot,
+        booking.listing_zip_snapshot,
+    ) == saved
+
+
 async def test_concurrent_overlapping_blocks_have_one_winner(api):
     responses = await asyncio.gather(
         api.post(path() + "/blocks", headers=auth(), json=block()),
