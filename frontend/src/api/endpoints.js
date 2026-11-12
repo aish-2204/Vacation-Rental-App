@@ -35,6 +35,7 @@ export const hostApi = {
   blocks: (id, params) => api.get(`/host/listings/${id}/blocks`, params),
   addBlock: (id, body) => api.post(`/host/listings/${id}/blocks`, body),
   deleteBlock: (id, blockId) => api.del(`/host/listings/${id}/blocks/${blockId}`),
+  mediaUploadUrl: (id, body) => api.post(`/host/listings/${id}/media/upload-url`, body),
   addMedia: (id, body) => api.post(`/host/listings/${id}/media`, body),
   patchMedia: (id, mediaId, body) => api.patch(`/host/listings/${id}/media/${mediaId}`, body),
   deleteMedia: (id, mediaId) => api.del(`/host/listings/${id}/media/${mediaId}`),
