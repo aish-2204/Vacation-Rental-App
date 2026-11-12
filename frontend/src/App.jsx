@@ -10,6 +10,7 @@ import HostAnalytics from './pages/host/HostAnalytics';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import HostListings from './pages/host/HostListings';
 import ListingEditor from './pages/host/ListingEditor';
+import AdminListings from './pages/admin/AdminListings';
 
 function NotFound() {
   return (
@@ -83,6 +84,14 @@ export default function App() {
         {/* Admin */}
         <Route path="admin/analytics" element={<RequireAuth roles={['ADMIN']}><AdminAnalytics /></RequireAuth>} />
         <Route path="admin" element={<Navigate to="/admin/listings" replace />} />
+        <Route
+          path="admin/listings"
+          element={
+            <RequireAuth roles={['ADMIN']}>
+              <AdminListings />
+            </RequireAuth>
+          }
+        />
 
         <Route path="*" element={<NotFound />} />
       </Route>
