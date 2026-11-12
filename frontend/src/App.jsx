@@ -13,6 +13,7 @@ import HostListings from './pages/host/HostListings';
 import ListingEditor from './pages/host/ListingEditor';
 import AdminListings from './pages/admin/AdminListings';
 import AdminListingDetail from './pages/admin/AdminListingDetail';
+import AdminAudit from './pages/admin/AdminAudit';
 
 function NotFound() {
   return (
@@ -107,6 +108,14 @@ export default function App() {
           element={
             <RequireAuth roles={['ADMIN']}>
               <AdminListingDetail />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/audit"
+          element={
+            <RequireAuth roles={['ADMIN']}>
+              <AdminAudit />
             </RequireAuth>
           }
         />
