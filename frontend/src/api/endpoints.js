@@ -22,6 +22,10 @@ export const bookingsApi = {
   cancel: (id) => api.patch(`/bookings/${id}/cancel`),
 };
 
+export const reviewsApi = {
+  create: (body) => api.post('/reviews', body),
+};
+
 export const hostApi = {
   amenities: () => api.get('/host/amenities'),
   list: (params) => api.get('/host/listings', params),

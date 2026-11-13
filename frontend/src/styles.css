@@ -795,6 +795,29 @@ td.actions .btn + .btn {
   margin-top: 0.4rem;
   padding-top: 0.6rem;
 }
+.review {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.review:last-child {
+  border-bottom: none;
+}
+.rating-input {
+  display: flex;
+  gap: 0.2rem;
+}
+.rating-input button {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #d1d5db;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+.rating-input button.on {
+  color: var(--accent);
+}
 .media-row {
   display: grid;
   grid-template-columns: 96px 1fr auto;
