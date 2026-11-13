@@ -7,6 +7,7 @@ import ListingDetail from './pages/ListingDetail';
 import MyBookings from './pages/MyBookings';
 import BookingDetail from './pages/BookingDetail';
 import Checkout from './pages/Checkout';
+import ReviewPage from './pages/ReviewPage';
 import HostAnalytics from './pages/host/HostAnalytics';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import HostListings from './pages/host/HostListings';
@@ -59,6 +60,15 @@ export default function App() {
           element={
             <RequireAuth roles={['CUSTOMER']}>
               <BookingDetail />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="bookings/:id/review"
+          element={
+            <RequireAuth roles={['CUSTOMER']}>
+              <ReviewPage />
             </RequireAuth>
           }
         />
