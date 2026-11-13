@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
+from starlette.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.core.throttle import LoginRateLimiter
@@ -23,6 +24,9 @@ from app.routers.health import router as health_router
 from app.routers.host import router as host_router
 from app.routers.listings import router as listings_router
 from app.routers.reviews import router as reviews_router
+from app.routers.uploads import router as uploads_router
+from app.storage import get_storage
+from app.storage.local import LocalDiskStorage
 
 settings = get_settings()
 logging.basicConfig(level=settings.log_level)
@@ -65,6 +69,12 @@ def create_app() -> FastAPI:
     application.include_router(bookings_router, prefix="/api/v1")
     application.include_router(reviews_router, prefix="/api/v1")
     application.include_router(analytics_router, prefix="/api/v1")
+    application.include_router(uploads_router, prefix="/api/v1")
+    storage = get_storage()
+    if isinstance(storage, LocalDiskStorage):
+        # Local stand-in for a public bucket/CDN. Cloud providers serve media themselves.
+        storage.root.mkdir(parents=True, exist_ok=True)
+        application.mount("/media", StaticFiles(directory=storage.root), name="media")
     return application
 
 
