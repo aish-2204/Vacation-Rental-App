@@ -26,8 +26,25 @@ def _local(settings: Settings) -> ObjectStorage:
     )
 
 
+def _azure(settings: Settings) -> ObjectStorage:
+    from app.storage.azure_blob import AzureBlobStorage
+
+    if not settings.azure_storage_account_name or not settings.azure_storage_account_key:
+        raise RuntimeError(
+            "STORAGE_PROVIDER=azure requires AZURE_STORAGE_ACCOUNT_NAME and "
+            "AZURE_STORAGE_ACCOUNT_KEY"
+        )
+    return AzureBlobStorage(
+        account_name=settings.azure_storage_account_name,
+        account_key=settings.azure_storage_account_key.get_secret_value(),
+        container=settings.azure_storage_container,
+        public_base_url=settings.media_public_base_url,
+    )
+
+
 PROVIDERS: dict[str, Callable[[Settings], ObjectStorage]] = {
     "local": _local,
+    "azure": _azure,
 }
 
 
