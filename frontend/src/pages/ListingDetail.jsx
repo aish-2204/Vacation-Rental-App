@@ -120,6 +120,47 @@ function Schedule({ data }) {
   );
 }
 
+function Reviews({ listingId, average, count }) {
+  const [page, setPage] = useState(1);
+  const [items, setItems] = useState([]);
+  const reviews = useAsync(() => publicApi.reviews(listingId, { page, page_size: 5 }), [listingId, page]);
+  useEffect(() => {
+    if (!reviews.data) return;
+    setItems((prev) => (page === 1 ? reviews.data.data : [...prev, ...reviews.data.data.filter((r) => !prev.some((p) => p.id === r.id))]));
+  }, [reviews.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pg = reviews.data?.pagination;
+  return (
+    <section className="card">
+      <h2>
+        Reviews {average != null && <span className="muted small">★ {average.toFixed(1)} · {count} review{count === 1 ? '' : 's'}</span>}
+      </h2>
+      <ErrorAlert error={reviews.error} />
+      {reviews.loading && !items.length ? (
+        <Spinner />
+      ) : items.length === 0 ? (
+        <p className="muted">No reviews yet. Reviews appear after guests complete their stay.</p>
+      ) : (
+        <>
+          {items.map((r) => (
+            <div className="review" key={r.id}>
+              <div className="row spread">
+                <span><Stars value={r.rating} /> <strong className="small">Guest</strong></span>
+                <span className="muted small">{fmtDateTime(r.created_at)}</span>
+              </div>
+              <p style={{ margin: '0.4rem 0 0', whiteSpace: 'pre-wrap' }}>{r.comment}</p>
+            </div>
+          ))}
+          {pg && pg.page < pg.total_pages && (
+            <button className="btn btn-secondary btn-sm" disabled={reviews.loading} onClick={() => setPage((p) => p + 1)}>
+              {reviews.loading ? 'Loading…' : 'Show more reviews'}
+            </button>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function BookingPanel({ listing, initial }) {
   const { user } = useAuth();
   const location = useLocation();

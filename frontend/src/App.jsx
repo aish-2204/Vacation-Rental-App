@@ -5,11 +5,16 @@ import Register from './pages/Register';
 import Search from './pages/Search';
 import ListingDetail from './pages/ListingDetail';
 import MyBookings from './pages/MyBookings';
+import BookingDetail from './pages/BookingDetail';
 import Checkout from './pages/Checkout';
+import ReviewPage from './pages/ReviewPage';
 import HostAnalytics from './pages/host/HostAnalytics';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import HostListings from './pages/host/HostListings';
 import ListingEditor from './pages/host/ListingEditor';
+import AdminListings from './pages/admin/AdminListings';
+import AdminListingDetail from './pages/admin/AdminListingDetail';
+import AdminAudit from './pages/admin/AdminAudit';
 
 function NotFound() {
   return (
@@ -50,6 +55,23 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="bookings/:id"
+          element={
+            <RequireAuth roles={['CUSTOMER']}>
+              <BookingDetail />
+            </RequireAuth>
+          }
+        />
+
+        <Route
+          path="bookings/:id/review"
+          element={
+            <RequireAuth roles={['CUSTOMER']}>
+              <ReviewPage />
+            </RequireAuth>
+          }
+        />
 
         {/* Host */}
         <Route path="host" element={<Navigate to="/host/listings" replace />} />
@@ -83,6 +105,30 @@ export default function App() {
         {/* Admin */}
         <Route path="admin/analytics" element={<RequireAuth roles={['ADMIN']}><AdminAnalytics /></RequireAuth>} />
         <Route path="admin" element={<Navigate to="/admin/listings" replace />} />
+        <Route
+          path="admin/listings"
+          element={
+            <RequireAuth roles={['ADMIN']}>
+              <AdminListings />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/listings/:id"
+          element={
+            <RequireAuth roles={['ADMIN']}>
+              <AdminListingDetail />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/audit"
+          element={
+            <RequireAuth roles={['ADMIN']}>
+              <AdminAudit />
+            </RequireAuth>
+          }
+        />
 
         <Route path="*" element={<NotFound />} />
       </Route>
