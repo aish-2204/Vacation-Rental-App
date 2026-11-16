@@ -282,6 +282,23 @@ async def seed_demo(session: AsyncSession, *, as_of: datetime | None = None) -> 
                     created_at=departure + timedelta(days=1),
                 )
             )
+    # Additional future stays give every analytics boundary its own creation time.
+    for i, created in enumerate(created_times[4:], start=12):
+        template = dict(bookings[8])
+        check_in = anchor.date() + timedelta(days=100 + (i - 12) * 6)
+        template.update(
+            id=demo_id(f"booking/{i}"),
+            check_in=check_in,
+            check_out=check_in + timedelta(days=4),
+            arrival_at=datetime.combine(check_in, time(15), ZoneInfo(listings[0]["timezone"])),
+            departure_at=datetime.combine(
+                check_in + timedelta(days=4), time(11), ZoneInfo(listings[0]["timezone"])
+            ),
+            total_cost=template["nightly_price_snapshot"] * 4,
+            created_at=created,
+            updated_at=created,
+        )
+        bookings.append(template)
     counts["bookings"] = await insert_missing(session, Booking, bookings)
     counts["reviews"] = await insert_missing(session, Review, reviews)
     return counts
