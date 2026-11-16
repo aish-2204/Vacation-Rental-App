@@ -105,6 +105,41 @@ async def test_incomplete_draft_reports_missing_fields_and_can_be_completed(api)
     ] == "APPROVED"
 
 
+@pytest.mark.parametrize(
+    "actor,expected", [("host2", 404), ("customer", 403), ("admin", 403), (None, 401)]
+)
+async def test_every_owned_and_nested_operation_enforces_role_and_ownership(api, actor, expected):
+    headers = auth(actor) if actor else {}
+    media = str(demo_id("media/0"))
+    blocked = str(demo_id("block/0"))
+    operations = [
+        ("GET", path(), None),
+        ("PATCH", path(), {"name": "Forbidden edit"}),
+        ("DELETE", path(), {"reason": "Forbidden removal"}),
+        ("PUT", path() + "/hours", {"hours": hours()}),
+        ("PUT", path() + "/booking-rules", {"booking_rules": rules()}),
+        ("GET", path() + "/blocks", None),
+        ("POST", path() + "/blocks", block()),
+        ("DELETE", path() + "/blocks/" + blocked, None),
+        ("POST", path() + "/media", {"url": "https://example.test/photo.jpg"}),
+        ("PATCH", path() + "/media/" + media, {"caption": "Foreign edit"}),
+        ("DELETE", path() + "/media/" + media, None),
+    ]
+    for method, endpoint, body in operations:
+        response = await api.request(method, endpoint, headers=headers, json=body)
+        assert response.status_code == expected, (method, endpoint, response.text)
+        assert response.json()["request_id"] == response.headers["X-Request-ID"]
+    if actor != "host2":
+        for method, endpoint, body in [
+            ("POST", "/api/v1/host/listings", payload()),
+            ("GET", "/api/v1/host/listings", None),
+            ("GET", "/api/v1/host/amenities", None),
+        ]:
+            assert (
+                await api.request(method, endpoint, headers=headers, json=body)
+            ).status_code == expected
+
+
 @pytest.mark.parametrize("actor", ["host1", "customer", None])
 async def test_all_admin_operations_require_admin(api, actor):
     headers = auth(actor) if actor else {}
@@ -121,6 +156,20 @@ async def test_all_admin_operations_require_admin(api, actor):
         assert (
             await api.request(method, endpoint, headers=headers, json=body)
         ).status_code == expected
+
+
+async def test_foreign_child_ids_cannot_be_used_under_owned_parent(api):
+    for method, endpoint, body in [
+        ("PATCH", path() + f"/media/{demo_id('media/1')}", {"caption": "Foreign"}),
+        ("DELETE", path() + f"/media/{demo_id('media/1')}", None),
+        ("DELETE", path() + f"/blocks/{demo_id('block/1')}", None),
+    ]:
+        foreign = await api.request(method, endpoint, headers=auth(), json=body)
+        missing = await api.request(
+            method, endpoint.rsplit("/", 1)[0] + f"/{uuid4()}", headers=auth(), json=body
+        )
+        assert foreign.status_code == missing.status_code == 404
+        assert foreign.json()["error"] == missing.json()["error"]
 
 
 async def test_lists_are_owned_paginated_filtered_and_stable(api):
