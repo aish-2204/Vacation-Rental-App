@@ -876,6 +876,43 @@ td.actions .btn + .btn {
   min-width: 110px;
 }
 
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .search-layout,
+  .detail-layout,
+  .auth-wrap {
+    grid-template-columns: 1fr;
+  }
+  .filters,
+  .booking-panel {
+    position: static;
+  }
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .auth-aside {
+    display: none;
+  }
+  .nav-inner {
+    height: auto;
+    padding: 0.6rem 0;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 560px) {
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+  .auth-form {
+    padding: 1.5rem;
+  }
+}
+
 /* ---------- Maps (OpenStreetMap / Leaflet) ---------- */
 .map-wrap {
   position: relative;
